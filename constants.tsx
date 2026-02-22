@@ -1,0 +1,93 @@
+
+import React from 'react';
+import { 
+  LayoutDashboard, 
+  Wallet, 
+  ListTodo, 
+  CreditCard, 
+  Target, 
+  ShoppingCart, 
+  Star, 
+  FileText, 
+  BarChart2, 
+  Smile, 
+  Calendar, 
+  BookOpen, 
+  Settings, 
+  Users, 
+  Mail, 
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  ScanLine,
+  Search,
+  MoreVertical,
+  Trash2,
+  Edit,
+  History,
+  Copy,
+  Share2,
+  X,
+  Calculator,
+  Bot,
+  Check
+} from 'lucide-react';
+
+export const ICONS = {
+  Dashboard: <LayoutDashboard size={20} />,
+  Transactions: <Wallet size={20} />,
+  FixedExpenses: <ListTodo size={20} />,
+  Installments: <CreditCard size={20} />,
+  Limits: <Target size={20} />,
+  Grocery: <ShoppingCart size={20} />,
+  Wishlist: <Star size={20} />,
+  Notes: <FileText size={20} />,
+  Reports: <BarChart2 size={20} />,
+  Emotion: <Smile size={20} />,
+  Calendar: <Calendar size={20} />,
+  School: <BookOpen size={20} />,
+  Settings: <Settings size={20} />,
+  About: <Users size={20} />,
+  Contact: <Mail size={20} />,
+  Logout: <LogOut size={20} />,
+  Back: <ChevronLeft size={18} />,
+  Next: <ChevronRight size={18} />,
+  Add: <Plus size={20} />,
+  Scan: <ScanLine size={20} />,
+  Calculator: <Calculator size={24} />,
+  Bot: <Bot size={24} />,
+  History: <History size={18} />,
+  Copy: <Copy size={18} />,
+  Share: <Share2 size={18} />,
+  Trash: <Trash2 size={18} />,
+  Edit: <Edit size={18} />,
+  X: <X size={24} />,
+  Check: <Check size={18} />
+};
+
+export const CATEGORIES = [
+  'Alimentação',
+  'Assinatura',
+  'Cabeleireiro',
+  'Casa',
+  'Cachorro',
+  'Compras',
+  'Educação',
+  'Lazer',
+  'Operação bancária',
+  'Pix',
+  'Saúde',
+  'Serviço',
+  'Supermercado',
+  'Transporte',
+  'Viagem',
+  'Outro'
+];
+
+export const PAYMENT_METHODS = [
+  'Dinheiro',
+  'Cartão crédito',
+  'Cartão débito',
+  'Pix'
+];

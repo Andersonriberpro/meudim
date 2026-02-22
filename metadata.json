@@ -1,0 +1,7 @@
+{
+  "name": "MeuDim - Gestão F",
+  "description": "MeuDim: seu dinheiro no controle. Um sistema completo de gestão de finanças pessoais com painel de controle militar/kraft.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
