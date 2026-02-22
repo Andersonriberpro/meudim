@@ -150,13 +150,10 @@ const App: React.FC = () => {
         </div>
 
         {/* Floating Actions */}
-        <div className="fixed bottom-6 left-6 hidden sm:block animate-bounce z-20">
-          <button className="w-12 h-12 md:w-14 md:h-14 bg-[#3A4F3C] rounded-2xl md:rounded-xl flex items-center justify-center text-[#E6DCCB] shadow-2xl hover:bg-[#2F3F31] transition-all border-2 border-white">
+        <div className="fixed bottom-6 right-6 z-20 flex items-center space-x-3">
+          <button className="w-12 h-12 md:w-14 md:h-14 bg-[#3A4F3C] rounded-2xl md:rounded-xl flex items-center justify-center text-[#E6DCCB] shadow-2xl hover:bg-[#2F3F31] transition-all border-2 border-white hover:scale-110 hidden sm:flex">
             <span className="scale-75">{ICONS.Bot}</span>
           </button>
-        </div>
-
-        <div className="fixed bottom-6 right-6 z-20">
           <button
             onClick={() => setIsCalculatorOpen(true)}
             className="w-12 h-12 md:w-14 md:h-14 bg-[#3A4F3C] rounded-2xl md:rounded-xl flex items-center justify-center text-[#E6DCCB] shadow-2xl hover:bg-[#2F3F31] transition-all border-2 border-white active:scale-90"
