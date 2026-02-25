@@ -1,10 +1,12 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ICONS } from '../constants';
 import AddTransactionModal from './AddTransactionModal';
-import { CheckCircle2, ChevronDown, Settings2, Plus, Trash2, X, Edit, Sparkles, FolderTree, ArrowUpRight } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Settings2, Plus, Trash2, X, Edit, Sparkles, FolderTree, ArrowUpRight, Loader2 } from 'lucide-react';
 import PageLayout from './layout/PageLayout';
 import Card from './ui/Card';
 import Toast from './ui/Toast';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TransactionsProps {
   isTravelModeActive: boolean;
@@ -40,11 +42,13 @@ const INITIAL_DATABASE: CategoryStructure[] = [
 const SUGGESTED_CATS_EXPENSE = ['ASSINATURA', 'CABELEREIRO', 'COMPRA', 'OPERAÇÃO BANCÁRIA', 'PIX', 'SERVIÇO', 'SUPERMERCADO', 'OUTROS', 'PRESENTES', 'DOAÇÕES', 'EMPRÉSTIMOS'];
 
 const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelName }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'categories'>('list');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState('Todos');
+  const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [manageType, setManageType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
@@ -53,9 +57,42 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   const [selectedParentCat, setSelectedParentCat] = useState('');
 
   const [manageCategories, setManageCategories] = useState<CategoryStructure[]>(INITIAL_DATABASE);
-  const [transactions, setTransactions] = useState([
-    { id: '1A2B3C', description: 'SUPERMERCADO MENSAL', amount: 450.90, date: '2026-02-05', category: 'ALIMENTAÇÃO', type: 'EXPENSE', paymentMethod: 'Pix' }
-  ]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  // Fetch transactions from Supabase
+  const fetchTransactions = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      setTransactions((data || []).map(t => ({
+        id: t.id,
+        description: t.description,
+        amount: Number(t.amount),
+        date: t.date,
+        category: t.category,
+        subcategory: t.subcategory,
+        type: t.type,
+        paymentMethod: t.payment_method,
+        linkToTravel: t.link_to_travel,
+      })));
+    } catch (err: any) {
+      showToast('Erro ao carregar lançamentos');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -108,14 +145,52 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
     ));
   };
 
-  const handleSave = (data: any) => {
-    if (data.id) {
-      setTransactions(transactions.map(t => t.id === data.id ? { ...data } : t));
-      showToast("Tudo certo por aqui 👌");
-    } else {
-      const newTransaction = { ...data, id: Math.random().toString(36).substr(2, 6).toUpperCase() };
-      setTransactions([newTransaction, ...transactions]);
-      showToast(data.type === 'INCOME' ? "Boa! Receita adicionada 💰" : "Gasto registrado com sucesso");
+  const handleSave = async (data: any) => {
+    if (!user) return;
+    try {
+      if (data.id) {
+        // Update existing transaction
+        const { error } = await supabase
+          .from('transactions')
+          .update({
+            type: data.type,
+            description: data.description,
+            amount: data.amount,
+            date: data.date,
+            category: data.category,
+            subcategory: data.subcategory || null,
+            payment_method: data.paymentMethod,
+            link_to_travel: data.linkToTravel || false,
+          })
+          .eq('id', data.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+        showToast("Tudo certo por aqui 👌");
+      } else {
+        // Insert new transaction
+        const { error } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: user.id,
+            type: data.type,
+            description: data.description,
+            amount: data.amount,
+            date: data.date,
+            category: data.category,
+            subcategory: data.subcategory || null,
+            payment_method: data.paymentMethod,
+            link_to_travel: data.linkToTravel || false,
+          });
+
+        if (error) throw error;
+        showToast(data.type === 'INCOME' ? "Boa! Receita adicionada 💰" : "Gasto registrado com sucesso");
+      }
+      // Refresh from DB
+      await fetchTransactions();
+    } catch (err: any) {
+      showToast('Erro ao salvar lançamento');
+      console.error(err);
     }
     setIsAddModalOpen(false);
   };
@@ -230,7 +305,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
                   </span>
                   <div className="flex items-center space-x-1 md:justify-center">
                     <button onClick={() => { setEditingTransaction(t); setIsAddModalOpen(true); }} className="p-1.5 md:p-2 text-[#3A4F3C]/20 hover:text-[#3A4F3C] transition-colors"><Edit size={14} /></button>
-                    <button onClick={() => { if (confirm('Excluir?')) setTransactions(transactions.filter(tr => tr.id !== t.id)) }} className="p-1.5 md:p-2 text-[#3A4F3C]/20 hover:text-[#9C4A3C] transition-colors"><Trash2 size={14} /></button>
+                    <button onClick={async () => { if (confirm('Excluir?')) { const { error } = await supabase.from('transactions').delete().eq('id', t.id).eq('user_id', user!.id); if (error) { showToast('Erro ao excluir'); console.error(error); } else { setTransactions(transactions.filter(tr => tr.id !== t.id)); showToast('Lançamento excluído'); } } }} className="p-1.5 md:p-2 text-[#3A4F3C]/20 hover:text-[#9C4A3C] transition-colors"><Trash2 size={14} /></button>
                   </div>
                 </div>
               ))}
