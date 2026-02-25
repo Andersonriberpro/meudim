@@ -40,13 +40,13 @@ interface AddTransactionModalProps {
   travelName?: string;
 }
 
-const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  initialData, 
-  isTravelModeActive = false, 
-  travelName = "" 
+const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialData,
+  isTravelModeActive = false,
+  travelName = ""
 }) => {
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [description, setDescription] = useState('');
@@ -102,14 +102,14 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
   const handleSave = () => {
     if (onSave) {
-      onSave({ 
+      onSave({
         id: initialData?.id,
-        type, 
-        description, 
+        type,
+        description,
         subcategory,
-        amount: parseFloat(value.replace(',', '.')), 
-        date, 
-        category, 
+        amount: parseFloat(value.replace(',', '.')),
+        date,
+        category,
         paymentMethod,
         linkToTravel
       });
@@ -120,38 +120,36 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
       <div className="absolute inset-0 bg-[#3A4F3C]/60 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="bg-[#E6DCCB] w-full max-w-lg rounded-t-2xl md:rounded-[2.5rem] p-5 md:p-10 shadow-2xl relative animate-in slide-in-from-bottom md:zoom-in-95 duration-300 border border-black/5 max-h-[95vh] overflow-y-auto custom-scrollbar">
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 text-[#3A4F3C]/40 hover:text-[#3A4F3C]">
+
+      <div className="bg-[#E6DCCB] w-full max-w-lg rounded-t-2xl md:rounded-[2.5rem] p-4 md:p-10 shadow-2xl relative animate-in slide-in-from-bottom md:zoom-in-95 duration-300 border border-black/5 max-h-[85vh] md:max-h-[95vh] overflow-y-auto custom-scrollbar pb-8 md:pb-10">
+        <button onClick={onClose} className="absolute top-3 right-3 md:top-4 md:right-4 p-2 text-[#3A4F3C]/40 hover:text-[#3A4F3C] z-10">
           <X size={20} />
         </button>
 
-        <h3 className="text-xl md:text-3xl font-black text-[#3A4F3C] mb-5 md:mb-8 uppercase tracking-tighter">
+        <h3 className="text-base md:text-3xl font-black text-[#3A4F3C] mb-4 md:mb-8 uppercase tracking-tighter pr-8">
           {initialData ? 'Editar Lançamento' : 'Novo Lançamento'}
         </h3>
-        
+
         <div className="space-y-4 md:space-y-6">
           {/* Seletor de Tipo */}
           <div className="space-y-1.5">
-             <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Tipo de Movimentação</label>
-             <div className="flex space-x-2">
-                <button 
-                  onClick={() => setType('INCOME')}
-                  className={`flex-1 py-3 rounded-xl font-black uppercase text-[8px] tracking-widest transition-all ${
-                    type === 'INCOME' ? 'bg-[#6E8F7A] text-white shadow-lg' : 'bg-white/50 text-[#3A4F3C]/40'
+            <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Tipo de Movimentação</label>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setType('INCOME')}
+                className={`flex-1 py-3 rounded-xl font-black uppercase text-[8px] tracking-widest transition-all ${type === 'INCOME' ? 'bg-[#6E8F7A] text-white shadow-lg' : 'bg-white/50 text-[#3A4F3C]/40'
                   }`}
-                >
-                   Receita
-                </button>
-                <button 
-                  onClick={() => setType('EXPENSE')}
-                  className={`flex-1 py-3 rounded-xl font-black uppercase text-[8px] tracking-widest transition-all ${
-                    type === 'EXPENSE' ? 'bg-[#9C4A3C] text-white shadow-lg' : 'bg-white/50 text-[#3A4F3C]/40'
+              >
+                Receita
+              </button>
+              <button
+                onClick={() => setType('EXPENSE')}
+                className={`flex-1 py-3 rounded-xl font-black uppercase text-[8px] tracking-widest transition-all ${type === 'EXPENSE' ? 'bg-[#9C4A3C] text-white shadow-lg' : 'bg-white/50 text-[#3A4F3C]/40'
                   }`}
-                >
-                   Despesa
-                </button>
-             </div>
+              >
+                Despesa
+              </button>
+            </div>
           </div>
 
           {isTravelModeActive && (
@@ -162,7 +160,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   Vincular à Viagem ({travelName})
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setLinkToTravel(!linkToTravel)}
                 className={`w-8 h-5 rounded-full relative transition-all ${linkToTravel ? 'bg-[#6E8F7A]' : 'bg-black/10'}`}
               >
@@ -173,8 +171,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
           <div className="space-y-1">
             <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Descrição</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] uppercase text-[10px]"
@@ -187,8 +185,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Valor</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[#3A4F3C]/30 text-[10px]">R$</span>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   className="w-full bg-white/60 border border-black/5 rounded-xl pl-10 pr-4 py-3 outline-none font-black text-[#3A4F3C] text-sm"
@@ -198,8 +196,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
             <div className="space-y-1">
               <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Data</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[10px]"
@@ -212,7 +210,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             <div className="space-y-1">
               <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Categoria</label>
               <div className="relative">
-                <select 
+                <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none cursor-pointer"
@@ -227,7 +225,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             <div className="space-y-1">
               <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Subcategoria</label>
               <div className="relative">
-                <select 
+                <select
                   value={subcategory}
                   onChange={(e) => setSubcategory(e.target.value)}
                   disabled={!category}
@@ -244,23 +242,23 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
           {/* Campo adicional se escolher 'OUTRO' na subcategoria */}
           {subcategory === 'OUTRO' && (
-             <div className="space-y-1 animate-in slide-in-from-top-2">
-                <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Nova Subcategoria</label>
-                <input 
-                  type="text" 
-                  placeholder="DIGITE O NOME..."
-                  className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] uppercase text-[9px]"
-                  onChange={(e) => {
-                    // Aqui você poderia salvar temporariamente ou lidar com a subcategoria customizada
-                  }}
-                />
-             </div>
+            <div className="space-y-1 animate-in slide-in-from-top-2">
+              <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Nova Subcategoria</label>
+              <input
+                type="text"
+                placeholder="DIGITE O NOME..."
+                className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] uppercase text-[9px]"
+                onChange={(e) => {
+                  // Aqui você poderia salvar temporariamente ou lidar com a subcategoria customizada
+                }}
+              />
+            </div>
           )}
 
           <div className="space-y-1">
             <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Método de Pagamento</label>
             <div className="relative">
-              <select 
+              <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none cursor-pointer"
@@ -272,13 +270,13 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           </div>
 
           <div className="flex flex-col-reverse md:flex-row md:space-x-3 pt-2 gap-2">
-            <button 
+            <button
               onClick={onClose}
               className="w-full md:flex-1 py-3 md:py-5 rounded-xl font-black text-[#3A4F3C]/60 hover:bg-black/5 uppercase text-[9px] tracking-widest transition-all"
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleSave}
               disabled={!category || !value || !description}
               className="w-full md:flex-[2] py-4 md:py-5 rounded-xl font-black text-[#E6DCCB] bg-[#3A4F3C] hover:bg-[#2F3F31] shadow-2xl transition-all active:scale-95 uppercase text-[9px] tracking-widest disabled:opacity-20 disabled:cursor-not-allowed"
