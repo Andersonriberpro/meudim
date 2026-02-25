@@ -39,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen, on
       bg-[#3A4F3C] h-full shadow-2xl transition-all duration-300 overflow-hidden flex flex-col border-r border-black/10
     `}>
       <div className="p-4 md:p-6 flex items-center justify-between min-w-[224px]">
-        <Logo variant="light" />
+        <Logo variant="sidebar" />
         <button onClick={onToggle} className="p-1.5 hover:bg-black/20 rounded-lg text-[#E6DCCB] transition-colors">
           <X size={18} />
         </button>
@@ -79,8 +79,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen, on
             </p>
             <div className="flex items-center space-x-2 mt-0.5">
               <span className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${isAdmin
-                  ? 'bg-[#D4A853]/20 text-[#D4A853]'
-                  : 'bg-[#E6DCCB]/10 text-[#E6DCCB]/40'
+                ? 'bg-[#D4A853]/20 text-[#D4A853]'
+                : 'bg-[#E6DCCB]/10 text-[#E6DCCB]/40'
                 }`}>
                 {isAdmin ? '👑 Admin' : '👤 Usuário'}
               </span>

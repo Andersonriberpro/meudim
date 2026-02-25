@@ -19,6 +19,8 @@ import { useAuth } from './contexts/AuthContext';
 import { ICONS } from './constants';
 import { Menu } from 'lucide-react';
 import MobileNavbar from './components/layout/MobileNavbar';
+import LogoIcon from './components/ui/LogoIcon';
+import Footer from './components/Footer';
 
 const App: React.FC = () => {
   const { user, loading } = useAuth();
@@ -36,8 +38,8 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#E6DCCB] flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-16 h-16 bg-[#3A4F3C] rounded-2xl flex items-center justify-center shadow-2xl border-2 border-white/20 animate-pulse">
-            <span className="text-[#E6DCCB] font-black text-2xl">M</span>
+          <div className="w-20 h-20 bg-[#3A4F3C] rounded-3xl flex items-center justify-center shadow-2xl border-2 border-white/10 animate-pulse">
+            <LogoIcon size={40} className="text-[#E6DCCB]" />
           </div>
           <div className="w-8 h-8 border-3 border-[#3A4F3C]/20 border-t-[#3A4F3C] rounded-full animate-spin" />
         </div>
@@ -49,8 +51,6 @@ const App: React.FC = () => {
   if (!user) {
     return <AuthPage />;
   }
-
-
 
   const renderContent = () => {
     switch (currentView) {
@@ -148,6 +148,8 @@ const App: React.FC = () => {
         <div className="p-4 md:p-10 max-w-7xl mx-auto w-full">
           {renderContent()}
         </div>
+
+        <Footer />
 
         {/* Floating Actions */}
         <div className="fixed bottom-6 right-6 z-20 flex items-center space-x-3">

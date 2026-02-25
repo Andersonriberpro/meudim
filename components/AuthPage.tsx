@@ -87,18 +87,8 @@ const AuthPage: React.FC = () => {
 
             <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in-95 duration-500">
                 {/* Logo Header */}
-                <div className="text-center mb-8">
-                    <div className="flex justify-center mb-4">
-                        <div className="w-16 h-16 bg-[#3A4F3C] rounded-2xl flex items-center justify-center shadow-2xl border-2 border-white/20">
-                            <span className="text-[#E6DCCB] font-black text-2xl">M</span>
-                        </div>
-                    </div>
-                    <h1 className="text-3xl md:text-4xl font-black text-[#3A4F3C] uppercase tracking-tighter">
-                        MeuDim
-                    </h1>
-                    <p className="text-[8px] md:text-[10px] font-black text-[#3A4F3C]/40 uppercase tracking-[0.3em] mt-1">
-                        Gestão Financeira Inteligente
-                    </p>
+                <div className="flex justify-center mb-8">
+                    <Logo variant="green" className="scale-125" />
                 </div>
 
                 {/* Auth Card */}
@@ -275,7 +265,7 @@ const AuthPage: React.FC = () => {
 
                 {/* Bottom Text */}
                 <p className="text-center mt-6 text-[7px] font-black text-[#3A4F3C]/20 uppercase tracking-[0.3em]">
-                    © 2026 MeuDim — Force Edition
+                    © 2026 MeuDim — Seu dinheiro no controle
                 </p>
             </div>
         </div>
