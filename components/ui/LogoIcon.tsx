@@ -15,11 +15,8 @@ const LogoIcon: React.FC<LogoIconProps> = ({ className = '', size = 32 }) => {
             className={className}
             xmlns="http://www.w3.org/2000/svg"
         >
-            {/* Precision recreation of the 3-bar rising graph from the user's logo */}
-            {/* Each bar has a specific slant and height increment to match the reference Exactly */}
-            <path d="M8 88 L8 58 L32 42 L32 88 Z" />
-            <path d="M38 88 L38 48 L62 32 L62 88 Z" />
-            <path d="M68 88 L68 38 L92 18 L92 88 Z" />
+            {/* Recreating the stylized "M" chart icon from the user's reference image */}
+            <path d="M15 85 L15 45 L35 32 L50 48 L68 25 L85 12 L85 85 L68 85 L68 45 L50 62 L35 48 L35 85 Z" />
         </svg>
     );
 };

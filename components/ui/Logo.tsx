@@ -25,14 +25,15 @@ const Logo: React.FC<LogoProps> = ({ className = '', variant = 'dark', showTagli
   return (
     <div className={`flex flex-col ${className}`}>
       <div className="flex items-center space-x-2.5">
-        <div className={`w-9 h-9 ${iconBg} rounded-xl flex items-center justify-center ${iconColor} ${iconPadding} transition-transform hover:scale-105`}>
-          <LogoIcon size={variant === 'green' || variant === 'sidebar' ? 22 : 28} />
+        <div className={`w-10 h-10 ${iconBg} rounded-xl flex items-center justify-center ${iconColor} ${iconPadding} transition-transform hover:scale-105`}>
+          <LogoIcon size={variant === 'green' || variant === 'sidebar' ? 24 : 32} />
         </div>
         <h1
-          className={`text-2xl md:text-3xl font-extrabold ${textColor} uppercase tracking-tight leading-none`}
+          className={`text-2xl md:text-3xl ${textColor} tracking-tight leading-none`}
           style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
         >
-          MeuDim
+          <span className="font-medium">Meu </span>
+          <span className="font-extrabold">Dim</span>
         </h1>
       </div>
       {showTagline && (

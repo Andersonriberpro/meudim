@@ -9,6 +9,8 @@ import PageLayout from './layout/PageLayout';
 import Card from './ui/Card';
 import Toast from './ui/Toast';
 
+import { useAuth } from '../contexts/AuthContext';
+
 interface DashboardProps {
   onViewChange: (view: View) => void;
   isTravelModeActive: boolean;
@@ -28,6 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   travelBudget,
   setTravelBudget
 }) => {
+  const { user, userProfile } = useAuth();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isVerificationOpen, setIsVerificationOpen] = useState(false);
@@ -35,6 +38,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isTravelActivationModalOpen, setIsTravelActivationModalOpen] = useState(false);
   const [scannedItemsBuffer, setScannedItemsBuffer] = useState<any[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+
+  const userName = userProfile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
+  const firstName = userName.split(' ')[0];
+  const avatarUrl = userProfile?.avatar_url;
 
   const [transactions, setTransactions] = useState([
     {
@@ -112,13 +119,17 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* Header Profile */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
         <div className="flex items-center space-x-3 md:space-x-4">
-          <div className="w-12 h-12 md:w-20 md:h-20 bg-[#3A4F3C] rounded-xl md:rounded-3xl flex items-center justify-center text-[#E6DCCB] text-xl md:text-3xl font-black shadow-xl">
-            A
+          <div className="w-12 h-12 md:w-20 md:h-20 bg-[#3A4F3C] rounded-xl md:rounded-3xl flex items-center justify-center text-[#E6DCCB] text-xl md:text-3xl font-black shadow-xl overflow-hidden">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" />
+            ) : (
+              firstName.charAt(0).toUpperCase()
+            )}
           </div>
           <div>
-            <h2 className="text-lg md:text-2xl font-black text-[#3A4F3C] uppercase tracking-tighter leading-none">Anderson</h2>
+            <h2 className="text-lg md:text-2xl font-black text-[#3A4F3C] uppercase tracking-tighter leading-none">{firstName}</h2>
             <div className="flex flex-col mt-0.5">
-              <p className="text-[#3A4F3C] font-black uppercase text-[8px] md:text-[10px] tracking-tight opacity-70">MeuDim <span className="opacity-40 italic font-medium">"seu dinheiro no controle"</span></p>
+              <p className="text-[#3A4F3C] font-black uppercase text-[8px] md:text-[10px] tracking-tight opacity-70">Meu Dim <span className="opacity-40 italic font-medium">"seu dinheiro no controle"</span></p>
               <div className="flex items-center space-x-2 mt-1">
                 <span className="bg-[#6E8F7A] text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">15 DIAS 🔥</span>
               </div>

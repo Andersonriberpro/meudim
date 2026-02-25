@@ -66,12 +66,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen, on
       <div className="p-4 border-t border-white/5 space-y-3 min-w-[224px]">
         {/* User Info */}
         <div className="flex items-center space-x-3 px-2">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isAdmin ? 'bg-[#D4A853]/30' : 'bg-[#E6DCCB]/20'
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${isAdmin ? 'bg-[#D4A853]/30' : 'bg-[#E6DCCB]/20'
             }`}>
-            {isAdmin
-              ? <Crown size={14} className="text-[#D4A853]" />
-              : <User size={14} className="text-[#E6DCCB]/60" />
-            }
+            {userProfile?.avatar_url ? (
+              <img src={userProfile.avatar_url} alt={userName} className="w-full h-full object-cover" />
+            ) : (
+              isAdmin
+                ? <Crown size={14} className="text-[#D4A853]" />
+                : <User size={14} className="text-[#E6DCCB]/60" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[9px] font-black text-[#E6DCCB] uppercase tracking-tight truncate">
