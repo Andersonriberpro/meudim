@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ICONS } from '../constants';
 import { View } from '../types';
-import { CheckCircle2, ShoppingBag, Plane, ArrowRight, Trophy, ChevronRight, ListTodo, CreditCard, BarChart2, Star, Download, Plus, X } from 'lucide-react';
+import { CheckCircle2, ShoppingBag, Plane, ArrowRight, Trophy, ChevronRight, ListTodo, CreditCard, BarChart2, Star, Download, Plus, X, Loader2 } from 'lucide-react';
 import AddTransactionModal from './AddTransactionModal';
 import ImportModal from './ImportModal';
 import ScanVerificationModal from './ScanVerificationModal';
 import PageLayout from './layout/PageLayout';
 import Card from './ui/Card';
 import Toast from './ui/Toast';
-
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 interface DashboardProps {
@@ -43,17 +43,38 @@ const Dashboard: React.FC<DashboardProps> = ({
   const firstName = userName.split(' ')[0];
   const avatarUrl = userProfile?.avatar_url;
 
-  const [transactions, setTransactions] = useState([
-    {
-      id: 'd1',
-      description: 'Supermercado Mensal',
-      amount: 450.90,
-      date: '2026-02-03',
-      category: 'Supermercado',
-      type: 'EXPENSE',
-      paymentMethod: 'Pix'
+  const [isLoading, setIsLoading] = useState(true);
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  const fetchTransactions = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      setTransactions((data || []).map(t => ({
+        id: t.id,
+        description: t.description,
+        amount: Number(t.amount),
+        date: t.date,
+        category: t.category,
+        type: t.type,
+        paymentMethod: t.payment_method,
+      })));
+    } catch (err) {
+      console.error('Erro ao carregar transações', err);
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  }, [user]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -84,21 +105,23 @@ const Dashboard: React.FC<DashboardProps> = ({
     setIsVerificationOpen(true);
   };
 
-  const handleConfirmScanItems = (items: any[], paymentMethod: string) => {
+  const handleConfirmScanItems = async (items: any[], paymentMethod: string) => {
+    if (!user) return;
     const today = new Date().toISOString().split('T')[0];
-    const newTransactions = items.map(item => ({
-      id: Math.random().toString(36).substr(2, 9),
+    const inserts = items.map(item => ({
+      user_id: user.id,
       description: item.name,
       amount: item.amount,
-      category: item.category,
+      category: item.category || 'OUTROS',
       type: 'EXPENSE',
-      paymentMethod: paymentMethod,
-      date: today
+      payment_method: paymentMethod,
+      date: today,
     }));
-
-    setTransactions([...newTransactions, ...transactions]);
+    const { error } = await supabase.from('transactions').insert(inserts);
+    if (error) { showToast('Erro ao salvar itens'); console.error(error); return; }
     setIsVerificationOpen(false);
     showToast(`${items.length} itens lançados com sucesso!`);
+    await fetchTransactions();
   };
 
   const totalIncome = transactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + curr.amount, 0);
@@ -260,22 +283,33 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="space-y-2 md:space-y-4">
-          {transactions.map((t) => (
-            <div key={t.id} className="bg-white/70 p-3 md:p-6 rounded-xl flex items-center justify-between shadow-sm border border-black/5 hover:bg-white transition-all group">
-              <div className="flex items-center space-x-2 md:space-x-5">
-                <div className={`w-8 h-8 md:w-14 md:h-14 rounded-lg md:rounded-2xl flex items-center justify-center text-white text-[10px] md:text-base ${t.type === 'INCOME' ? 'bg-[#6E8F7A]' : 'bg-[#9C4A3C]'}`}>
-                  {t.category === 'Supermercado' ? <ShoppingBag size={14} /> : <Plus size={14} />}
-                </div>
-                <div>
-                  <p className="font-black text-[#3A4F3C] text-[11px] md:text-lg leading-tight uppercase tracking-tight">{t.description}</p>
-                  <p className="text-[7px] font-bold text-[#3A4F3C]/40 uppercase tracking-widest mt-0.5">{t.category} • {t.paymentMethod}</p>
-                </div>
-              </div>
-              <p className={`text-xs md:text-2xl font-black whitespace-nowrap ${t.type === 'INCOME' ? 'text-[#6E8F7A]' : 'text-[#9C4A3C]'}`}>
-                {t.type === 'INCOME' ? '+ ' : '- '}R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
+          {isLoading ? (
+            <div className="flex justify-center py-10 opacity-40">
+              <Loader2 size={28} className="animate-spin text-[#3A4F3C]" />
             </div>
-          ))}
+          ) : transactions.length === 0 ? (
+            <div className="flex flex-col items-center py-10 opacity-30 text-center">
+              <ShoppingBag size={32} className="mb-2 text-[#3A4F3C]" />
+              <p className="text-[9px] font-black text-[#3A4F3C] uppercase tracking-widest">Nenhum lançamento ainda</p>
+            </div>
+          ) : (
+            transactions.map((t) => (
+              <div key={t.id} className="bg-white/70 p-3 md:p-6 rounded-xl flex items-center justify-between shadow-sm border border-black/5 hover:bg-white transition-all group">
+                <div className="flex items-center space-x-2 md:space-x-5">
+                  <div className={`w-8 h-8 md:w-14 md:h-14 rounded-lg md:rounded-2xl flex items-center justify-center text-white text-[10px] md:text-base ${t.type === 'INCOME' ? 'bg-[#6E8F7A]' : 'bg-[#9C4A3C]'}`}>
+                    {t.category === 'Supermercado' ? <ShoppingBag size={14} /> : <Plus size={14} />}
+                  </div>
+                  <div>
+                    <p className="font-black text-[#3A4F3C] text-[11px] md:text-lg leading-tight uppercase tracking-tight">{t.description}</p>
+                    <p className="text-[7px] font-bold text-[#3A4F3C]/40 uppercase tracking-widest mt-0.5">{t.category} • {t.paymentMethod}</p>
+                  </div>
+                </div>
+                <p className={`text-xs md:text-2xl font-black whitespace-nowrap ${t.type === 'INCOME' ? 'text-[#6E8F7A]' : 'text-[#9C4A3C]'}`}>
+                  {t.type === 'INCOME' ? '+ ' : '- '}R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 
@@ -283,7 +317,24 @@ const Dashboard: React.FC<DashboardProps> = ({
       <AddTransactionModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSave={(data) => setTransactions([data, ...transactions])}
+        onSave={async (data) => {
+          if (!user) return;
+          const { error } = await supabase.from('transactions').insert({
+            user_id: user.id,
+            type: data.type,
+            description: data.description,
+            amount: data.amount,
+            date: data.date,
+            category: data.category,
+            subcategory: data.subcategory || null,
+            payment_method: data.paymentMethod,
+            link_to_travel: data.linkToTravel || false,
+          });
+          if (error) { showToast('Erro ao salvar'); console.error(error); return; }
+          showToast(data.type === 'INCOME' ? 'Receita adicionada 💰' : 'Gasto registrado!');
+          setIsAddModalOpen(false);
+          await fetchTransactions();
+        }}
         isTravelModeActive={isTravelModeActive}
         travelName={travelName}
       />
