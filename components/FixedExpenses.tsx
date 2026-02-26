@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Trash2, CheckCircle2, AlertCircle, Calendar, Edit } from 'lucide-react';
 import PageLayout from './layout/PageLayout';
 import Card from './ui/Card';
 import AddFixedExpenseModal from './AddFixedExpenseModal';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FixedExpense {
-  id: number;
+  id: string;
   label: string;
   amount: number;
   dueDate: string;
@@ -13,10 +15,9 @@ interface FixedExpense {
 }
 
 const FixedExpenses: React.FC = () => {
-  const [expenses, setExpenses] = useState<FixedExpense[]>([
-    { id: 1, label: 'Aluguel', amount: 1200, dueDate: 'Dia 10', paid: true },
-    { id: 2, label: 'Internet', amount: 99.90, dueDate: 'Dia 15', paid: false },
-  ]);
+  const { user } = useAuth();
+  const [expenses, setExpenses] = useState<FixedExpense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<FixedExpense | null>(null);
@@ -26,6 +27,37 @@ const FixedExpenses: React.FC = () => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
+
+  // Fetch fixed expenses from Supabase
+  const fetchExpenses = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('fixed_expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('label');
+
+      if (error) throw error;
+
+      setExpenses((data || []).map(e => ({
+        id: e.id,
+        label: e.label,
+        amount: Number(e.amount),
+        dueDate: e.due_date || '',
+        paid: e.paid || false,
+      })));
+    } catch (err: any) {
+      showToast('Erro ao carregar gastos fixos');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [fetchExpenses]);
 
   const stats = useMemo(() => {
     const totalMensal = expenses.reduce((acc, e) => acc + e.amount, 0);
@@ -52,26 +84,84 @@ const FixedExpenses: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = (data: { id?: number; label: string; amount: number; dueDate: string; paid: boolean }) => {
-    if (data.id) {
-      setExpenses(expenses.map(e => e.id === data.id ? { ...e, ...data } : e));
-      showToast("Tudo certo por aqui 👌");
-    } else {
-      const newId = Date.now();
-      setExpenses([...expenses, { ...data, id: newId }]);
-      showToast("Tudo certo por aqui 👌");
+  const handleSave = async (data: { id?: string; label: string; amount: number; dueDate: string; paid: boolean }) => {
+    if (!user) return;
+    try {
+      if (data.id) {
+        // Update existing
+        const { error } = await supabase
+          .from('fixed_expenses')
+          .update({
+            label: data.label,
+            amount: data.amount,
+            due_date: data.dueDate,
+            paid: data.paid,
+          })
+          .eq('id', data.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+        showToast("Tudo certo por aqui 👌");
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('fixed_expenses')
+          .insert({
+            user_id: user.id,
+            label: data.label,
+            amount: data.amount,
+            due_date: data.dueDate,
+            paid: data.paid,
+          });
+
+        if (error) throw error;
+        showToast("Tudo certo por aqui 👌");
+      }
+      await fetchExpenses();
+    } catch (err: any) {
+      showToast('Erro ao salvar gasto fixo');
+      console.error(err);
     }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: string) => {
+    if (!user) return;
     if (confirm('Excluir este gasto fixo?')) {
-      setExpenses(expenses.filter(e => e.id !== id));
-      showToast("Seu dim tá organizado");
+      try {
+        const { error } = await supabase
+          .from('fixed_expenses')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+        setExpenses(expenses.filter(e => e.id !== id));
+        showToast("Seu dim tá organizado");
+      } catch (err: any) {
+        showToast('Erro ao excluir gasto fixo');
+        console.error(err);
+      }
     }
   };
 
-  const togglePaid = (id: number) => {
-    setExpenses(expenses.map(e => e.id === id ? { ...e, paid: !e.paid } : e));
+  const togglePaid = async (id: string) => {
+    if (!user) return;
+    const exp = expenses.find(e => e.id === id);
+    if (!exp) return;
+    const newPaid = !exp.paid;
+    try {
+      const { error } = await supabase
+        .from('fixed_expenses')
+        .update({ paid: newPaid })
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setExpenses(expenses.map(e => e.id === id ? { ...e, paid: newPaid } : e));
+    } catch (err: any) {
+      showToast('Erro ao atualizar status');
+      console.error(err);
+    }
   };
 
   return (
@@ -109,7 +199,12 @@ const FixedExpenses: React.FC = () => {
           </button>
         </div>
 
-        {expenses.length === 0 ? (
+        {isLoading ? (
+          <div className="p-10 md:p-16 flex flex-col items-center justify-center text-center">
+            <div className="w-8 h-8 border-3 border-[#3A4F3C]/20 border-t-[#3A4F3C] rounded-full animate-spin mb-3" />
+            <p className="text-[10px] md:text-sm font-black text-[#3A4F3C]/30 uppercase tracking-widest">Carregando...</p>
+          </div>
+        ) : expenses.length === 0 ? (
           <div className="p-10 md:p-16 flex flex-col items-center justify-center text-center">
             <p className="text-[10px] md:text-sm font-black text-[#3A4F3C]/30 uppercase tracking-widest">Nenhum gasto fixo cadastrado</p>
           </div>

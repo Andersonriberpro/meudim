@@ -14,12 +14,13 @@ interface TransactionsProps {
 }
 
 interface CategoryStructure {
+  id?: string;
   name: string;
   type: 'INCOME' | 'EXPENSE';
   subcategories: string[];
 }
 
-const INITIAL_DATABASE: CategoryStructure[] = [
+const DEFAULT_CATEGORIES: CategoryStructure[] = [
   { name: 'ALIMENTAÇÃO', type: 'EXPENSE', subcategories: ['JANTAR', 'ALMOÇO', 'LANCHE', 'RESTAURANTE', 'DELIVERY', 'PADARIA', 'LANCHONETES'] },
   { name: 'TRANSPORTE', type: 'EXPENSE', subcategories: ['COMBUSTÍVEL', 'UBER', 'TRANSPORTE PÚBLICO', 'MANUTENÇÃO VEÍCULO', 'PEDÁGIO', 'ESTACIONAMENTO'] },
   { name: 'MORADIA', type: 'EXPENSE', subcategories: ['ALUGUEL', 'CONDOMÍNIO', 'ENERGIA ELÉTRICA', 'ÁGUA', 'GÁS', 'MANUTENÇÃO DA CASA', 'INTERNET', 'IPTU', 'PRESTAÇÃO FINANCIAMENTO'] },
@@ -56,8 +57,54 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   const [newSubcatName, setNewSubcatName] = useState('');
   const [selectedParentCat, setSelectedParentCat] = useState('');
 
-  const [manageCategories, setManageCategories] = useState<CategoryStructure[]>(INITIAL_DATABASE);
+  const [manageCategories, setManageCategories] = useState<CategoryStructure[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+
+  // Fetch categories from Supabase
+  const fetchCategories = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setManageCategories(data.map(c => ({
+          id: c.id,
+          name: c.name,
+          type: c.type as 'INCOME' | 'EXPENSE',
+          subcategories: c.subcategories || [],
+        })));
+      } else {
+        // First time user: seed default categories into Supabase
+        const toInsert = DEFAULT_CATEGORIES.map(c => ({
+          user_id: user.id,
+          name: c.name,
+          type: c.type,
+          subcategories: c.subcategories,
+        }));
+        const { data: inserted, error: insertErr } = await supabase
+          .from('categories')
+          .insert(toInsert)
+          .select();
+        if (insertErr) throw insertErr;
+        setManageCategories((inserted || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          type: c.type as 'INCOME' | 'EXPENSE',
+          subcategories: c.subcategories || [],
+        })));
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar categorias:', err);
+      // Fallback to defaults if DB fails
+      setManageCategories(DEFAULT_CATEGORIES);
+    }
+  }, [user]);
 
   // Fetch transactions from Supabase
   const fetchTransactions = useCallback(async () => {
@@ -91,58 +138,112 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   }, [user]);
 
   useEffect(() => {
+    fetchCategories();
     fetchTransactions();
-  }, [fetchTransactions]);
+  }, [fetchCategories, fetchTransactions]);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleAddCategory = (name: string, type: 'INCOME' | 'EXPENSE') => {
+  const handleAddCategory = async (name: string, type: 'INCOME' | 'EXPENSE') => {
+    if (!user) return;
     const cleanName = name.trim().toUpperCase();
     if (!cleanName) return;
-    if (manageCategories.find(c => c.name === cleanName)) {
+    if (manageCategories.find(c => c.name === cleanName && c.type === type)) {
       showToast("Esta categoria já existe");
       return;
     }
-    setManageCategories([...manageCategories, { name: cleanName, type, subcategories: [] }]);
-    setNewCatName('');
-    showToast("Categoria cadastrada!");
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({ user_id: user.id, name: cleanName, type, subcategories: [] })
+        .select()
+        .single();
+      if (error) throw error;
+      setManageCategories([...manageCategories, { id: data.id, name: data.name, type: data.type as 'INCOME' | 'EXPENSE', subcategories: data.subcategories || [] }]);
+      setNewCatName('');
+      showToast("Categoria cadastrada!");
+    } catch (err: any) {
+      showToast('Erro ao salvar categoria');
+      console.error(err);
+    }
   };
 
-  const handleAddSubcategory = (subName: string) => {
+  const handleAddSubcategory = async (subName: string) => {
+    if (!user) return;
     const cleanSub = subName.trim().toUpperCase();
     if (!cleanSub || !selectedParentCat) {
       showToast("Selecione a categoria pai");
       return;
     }
-
-    setManageCategories(manageCategories.map(c => {
-      if (c.name === selectedParentCat) {
-        if (c.subcategories.includes(cleanSub)) return c;
-        return { ...c, subcategories: [...c.subcategories, cleanSub] };
-      }
-      return c;
-    }));
-    setNewSubcatName('');
-    showToast("Subcategoria adicionada!");
-  };
-
-  const handleRemoveCategory = (name: string) => {
-    if (confirm(`Excluir a categoria ${name} e todas as suas subcategorias?`)) {
-      setManageCategories(manageCategories.filter(c => c.name !== name));
-      if (selectedParentCat === name) setSelectedParentCat('');
-      showToast("Categoria removida");
+    const cat = manageCategories.find(c => c.name === selectedParentCat && c.type === manageType);
+    if (!cat || !cat.id) return;
+    if (cat.subcategories.includes(cleanSub)) {
+      showToast("Subcategoria já existe");
+      return;
+    }
+    const updatedSubs = [...cat.subcategories, cleanSub];
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .update({ subcategories: updatedSubs })
+        .eq('id', cat.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setManageCategories(manageCategories.map(c =>
+        c.id === cat.id ? { ...c, subcategories: updatedSubs } : c
+      ));
+      setNewSubcatName('');
+      showToast("Subcategoria adicionada!");
+    } catch (err: any) {
+      showToast('Erro ao salvar subcategoria');
+      console.error(err);
     }
   };
 
-  const handleRemoveSubcategory = (parentName: string, subName: string) => {
-    setManageCategories(manageCategories.map(c =>
-      c.name === parentName
-        ? { ...c, subcategories: c.subcategories.filter(s => s !== subName) }
-        : c
-    ));
+  const handleRemoveCategory = async (name: string) => {
+    if (!user) return;
+    const cat = manageCategories.find(c => c.name === name && c.type === manageType);
+    if (!cat || !cat.id) return;
+    if (confirm(`Excluir a categoria ${name} e todas as suas subcategorias?`)) {
+      try {
+        const { error } = await supabase
+          .from('categories')
+          .delete()
+          .eq('id', cat.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+        setManageCategories(manageCategories.filter(c => c.id !== cat.id));
+        if (selectedParentCat === name) setSelectedParentCat('');
+        showToast("Categoria removida");
+      } catch (err: any) {
+        showToast('Erro ao remover categoria');
+        console.error(err);
+      }
+    }
+  };
+
+  const handleRemoveSubcategory = async (parentName: string, subName: string) => {
+    if (!user) return;
+    const cat = manageCategories.find(c => c.name === parentName && c.type === manageType);
+    if (!cat || !cat.id) return;
+    const updatedSubs = cat.subcategories.filter(s => s !== subName);
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .update({ subcategories: updatedSubs })
+        .eq('id', cat.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setManageCategories(manageCategories.map(c =>
+        c.id === cat.id ? { ...c, subcategories: updatedSubs } : c
+      ));
+    } catch (err: any) {
+      showToast('Erro ao remover subcategoria');
+      console.error(err);
+    }
   };
 
   const handleSave = async (data: any) => {
@@ -186,6 +287,28 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
         if (error) throw error;
         showToast(data.type === 'INCOME' ? "Boa! Receita adicionada 💰" : "Gasto registrado com sucesso");
       }
+
+      // Auto-add new subcategory to the category's list if it doesn't exist yet
+      if (data.subcategory && data.category) {
+        const parentCat = manageCategories.find(
+          c => c.name === data.category && c.type === data.type
+        );
+        if (parentCat && parentCat.id && !parentCat.subcategories.includes(data.subcategory)) {
+          const updatedSubs = [...parentCat.subcategories, data.subcategory];
+          const { error: catError } = await supabase
+            .from('categories')
+            .update({ subcategories: updatedSubs })
+            .eq('id', parentCat.id)
+            .eq('user_id', user.id);
+
+          if (!catError) {
+            setManageCategories(manageCategories.map(c =>
+              c.id === parentCat.id ? { ...c, subcategories: updatedSubs } : c
+            ));
+          }
+        }
+      }
+
       // Refresh from DB
       await fetchTransactions();
     } catch (err: any) {
@@ -204,14 +327,14 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   const suggestedCatsCloud = useMemo(() => {
     const existing = manageCategories.map(c => c.name);
     if (manageType === 'INCOME') {
-      return INITIAL_DATABASE.filter(c => c.type === 'INCOME' && !existing.includes(c.name)).map(c => c.name);
+      return DEFAULT_CATEGORIES.filter(c => c.type === 'INCOME' && !existing.includes(c.name)).map(c => c.name);
     }
     return SUGGESTED_CATS_EXPENSE.filter(name => !existing.includes(name));
   }, [manageType, manageCategories]);
 
   const suggestedSubcatsCloud = useMemo(() => {
     if (!selectedParentCat) return [];
-    const parent = INITIAL_DATABASE.find(c => c.name === selectedParentCat);
+    const parent = DEFAULT_CATEGORIES.find(c => c.name === selectedParentCat);
     if (!parent) return [];
     const currentSubs = manageCategories.find(c => c.name === selectedParentCat)?.subcategories || [];
     return parent.subcategories.filter(s => !currentSubs.includes(s));
@@ -327,13 +450,13 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
 
             <div className="flex bg-white/10 p-1 rounded-2xl backdrop-blur-md">
               <button
-                onClick={() => setManageType('INCOME')}
+                onClick={() => { setManageType('INCOME'); setSelectedParentCat(''); }}
                 className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${manageType === 'INCOME' ? 'bg-white text-[#6E8F7A] shadow-xl' : 'text-white/60 hover:text-white'}`}
               >
                 Receitas
               </button>
               <button
-                onClick={() => setManageType('EXPENSE')}
+                onClick={() => { setManageType('EXPENSE'); setSelectedParentCat(''); }}
                 className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${manageType === 'EXPENSE' ? 'bg-white text-[#9C4A3C] shadow-xl' : 'text-white/60 hover:text-white'}`}
               >
                 Despesas
@@ -391,7 +514,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
                     <option value="">ESCOLHA A CATEGORIA PAI ({manageType === 'INCOME' ? 'RECEITA' : 'DESPESA'})</option>
                     {manageCategories
                       .filter(c => c.type === manageType)
-                      .map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                      .map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
                   </select>
                   <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3A4F3C]/40 pointer-events-none" />
                 </div>
@@ -416,7 +539,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2 max-h-[500px]">
                 {manageCategories.filter(c => c.type === manageType).length > 0 ? (
                   manageCategories.filter(c => c.type === manageType).map((cat) => (
-                    <div key={cat.name} className={`bg-white/70 border rounded-xl p-4 space-y-3 group transition-all cursor-pointer ${selectedParentCat === cat.name ? 'border-[#3A4F3C] ring-1 ring-[#3A4F3C]/10' : 'border-black/5 hover:border-black/10'}`} onClick={() => setSelectedParentCat(cat.name)}>
+                    <div key={cat.id || cat.name} className={`bg-white/70 border rounded-xl p-4 space-y-3 group transition-all cursor-pointer ${selectedParentCat === cat.name ? 'border-[#3A4F3C] ring-1 ring-[#3A4F3C]/10' : 'border-black/5 hover:border-black/10'}`} onClick={() => setSelectedParentCat(cat.name)}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`w-2 h-5 rounded-full ${cat.type === 'INCOME' ? 'bg-[#6E8F7A]' : 'bg-[#9C4A3C]'}`} />
@@ -467,6 +590,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
         initialData={editingTransaction}
         isTravelModeActive={isTravelModeActive}
         travelName={travelName}
+        categories={manageCategories}
       />
     </PageLayout>
   );

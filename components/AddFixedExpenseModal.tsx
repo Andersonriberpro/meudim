@@ -5,8 +5,8 @@ import { X } from 'lucide-react';
 interface AddFixedExpenseModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { id?: number; label: string; amount: number; dueDate: string; paid: boolean }) => void;
-    initialData?: { id: number; label: string; amount: number; dueDate: string; paid: boolean } | null;
+    onSave: (data: { id?: string; label: string; amount: number; dueDate: string; paid: boolean }) => void;
+    initialData?: { id: string; label: string; amount: number; dueDate: string; paid: boolean } | null;
 }
 
 const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onClose, onSave, initialData }) => {

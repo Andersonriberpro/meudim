@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, Sparkles, KeyRound } from 'lucide-react';
 import Logo from './ui/Logo';
@@ -12,9 +12,31 @@ const AuthPage: React.FC = () => {
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Load saved credentials on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('meudim_remember');
+            if (saved) {
+                const parsed = JSON.parse(atob(saved));
+                const now = Date.now();
+                if (parsed.expiry && now < parsed.expiry) {
+                    setEmail(parsed.email || '');
+                    setPassword(parsed.password || '');
+                    setRememberMe(true);
+                } else {
+                    // Expired, clean up
+                    localStorage.removeItem('meudim_remember');
+                }
+            }
+        } catch {
+            localStorage.removeItem('meudim_remember');
+        }
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,6 +52,19 @@ const AuthPage: React.FC = () => {
                         setError('E-mail ou senha incorretos.');
                     } else {
                         setError(error.message);
+                    }
+                } else {
+                    // Login successful — handle remember me
+                    if (rememberMe) {
+                        const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+                        const data = btoa(JSON.stringify({
+                            email,
+                            password,
+                            expiry: Date.now() + NINETY_DAYS_MS,
+                        }));
+                        localStorage.setItem('meudim_remember', data);
+                    } else {
+                        localStorage.removeItem('meudim_remember');
                     }
                 }
             } else if (mode === 'signup') {
@@ -195,9 +230,33 @@ const AuthPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Forgot password link */}
+                        {/* Remember me + Forgot password */}
                         {mode === 'login' && (
-                            <div className="text-right">
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center space-x-2 cursor-pointer group">
+                                    <div className="relative">
+                                        <input
+                                            type="checkbox"
+                                            checked={rememberMe}
+                                            onChange={(e) => setRememberMe(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-4 h-4 rounded-md border-2 border-[#3A4F3C]/20 bg-white/60 peer-checked:bg-[#3A4F3C] peer-checked:border-[#3A4F3C] transition-all flex items-center justify-center">
+                                            <svg
+                                                className={`w-2.5 h-2.5 text-[#E6DCCB] transition-opacity ${rememberMe ? 'opacity-100' : 'opacity-0'}`}
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                strokeWidth={3}
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <span className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest group-hover:text-[#3A4F3C]/60 transition-colors">
+                                        Lembrar-me por 90 dias
+                                    </span>
+                                </label>
                                 <button
                                     type="button"
                                     onClick={() => switchMode('reset')}

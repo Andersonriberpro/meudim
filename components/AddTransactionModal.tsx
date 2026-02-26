@@ -4,12 +4,13 @@ import { X, Plane, ChevronDown } from 'lucide-react';
 import { PAYMENT_METHODS } from '../constants';
 
 interface CategoryData {
+  id?: string;
   name: string;
   type: 'INCOME' | 'EXPENSE';
   subcategories: string[];
 }
 
-const CATEGORY_STRUCTURE: CategoryData[] = [
+const FALLBACK_CATEGORIES: CategoryData[] = [
   { name: 'ALIMENTAÇÃO', type: 'EXPENSE', subcategories: ['JANTAR', 'ALMOÇO', 'LANCHE', 'RESTAURANTE', 'DELIVERY', 'PADARIA', 'LANCHONETES'] },
   { name: 'TRANSPORTE', type: 'EXPENSE', subcategories: ['COMBUSTÍVEL', 'UBER', 'TRANSPORTE PÚBLICO', 'MANUTENÇÃO VEÍCULO', 'PEDÁGIO', 'ESTACIONAMENTO'] },
   { name: 'MORADIA', type: 'EXPENSE', subcategories: ['ALUGUEL', 'CONDOMÍNIO', 'ENERGIA ELÉTRICA', 'ÁGUA', 'GÁS', 'MANUTENÇÃO DA CASA', 'INTERNET', 'IPTU', 'PRESTAÇÃO FINANCIAMENTO'] },
@@ -38,6 +39,7 @@ interface AddTransactionModalProps {
   initialData?: any;
   isTravelModeActive?: boolean;
   travelName?: string;
+  categories?: CategoryData[];
 }
 
 const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
@@ -46,7 +48,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   onSave,
   initialData,
   isTravelModeActive = false,
-  travelName = ""
+  travelName = "",
+  categories
 }) => {
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [description, setDescription] = useState('');
@@ -56,17 +59,20 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
   const [linkToTravel, setLinkToTravel] = useState(false);
+  const [customSubcategory, setCustomSubcategory] = useState('');
+
+  const categorySource = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
 
   // Filtragem de categorias baseada no tipo
   const availableCategories = useMemo(() => {
-    return CATEGORY_STRUCTURE.filter(c => c.type === type).map(c => c.name);
-  }, [type]);
+    return categorySource.filter(c => c.type === type).map(c => c.name);
+  }, [type, categorySource]);
 
   // Filtragem de subcategorias baseada na categoria selecionada
   const availableSubcategories = useMemo(() => {
-    const catData = CATEGORY_STRUCTURE.find(c => c.name === category && c.type === type);
+    const catData = categorySource.find(c => c.name === category && c.type === type);
     return catData ? catData.subcategories : [];
-  }, [category, type]);
+  }, [category, type, categorySource]);
 
   useEffect(() => {
     if (initialData) {
@@ -74,6 +80,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setDescription(initialData.description || '');
       setCategory(initialData.category || '');
       setSubcategory(initialData.subcategory || '');
+      setCustomSubcategory('');
       setValue(initialData.amount?.toString() || initialData.value?.toString() || '');
       setDate(initialData.date || new Date().toISOString().split('T')[0]);
       setPaymentMethod(initialData.paymentMethod || 'Dinheiro');
@@ -83,6 +90,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setDescription('');
       setCategory('');
       setSubcategory('');
+      setCustomSubcategory('');
       setValue('');
       setDate(new Date().toISOString().split('T')[0]);
       setPaymentMethod('Dinheiro');
@@ -101,12 +109,15 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   if (!isOpen) return null;
 
   const handleSave = () => {
+    const finalSubcategory = subcategory === 'OUTRO' && customSubcategory.trim()
+      ? customSubcategory.trim()
+      : subcategory;
     if (onSave) {
       onSave({
         id: initialData?.id,
         type,
         description,
-        subcategory,
+        subcategory: finalSubcategory,
         amount: parseFloat(value.replace(',', '.')),
         date,
         category,
@@ -248,9 +259,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 type="text"
                 placeholder="DIGITE O NOME..."
                 className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] uppercase text-[9px]"
-                onChange={(e) => {
-                  // Aqui você poderia salvar temporariamente ou lidar com a subcategoria customizada
-                }}
+                value={customSubcategory}
+                onChange={(e) => setCustomSubcategory(e.target.value.toUpperCase())}
               />
             </div>
           )}
