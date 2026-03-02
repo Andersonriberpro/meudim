@@ -174,6 +174,7 @@ const Installments: React.FC = () => {
       const { data, error } = await supabase
         .from('transactions')
         .select('amount, card_id, type')
+        .eq('user_id', user.id)
         .not('card_id', 'is', null);
       if (error) throw error;
       setCardTransactions(data || []);

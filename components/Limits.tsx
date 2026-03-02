@@ -1,8 +1,9 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ICONS } from '../constants';
 import AddLimitModal from './AddLimitModal';
-import { CheckCircle2, Edit, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, Trash2, FolderTree } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CategoryLimit {
   id: string;
@@ -12,28 +13,71 @@ interface CategoryLimit {
 }
 
 const Limits: React.FC = () => {
+  const { user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLimit, setEditingLimit] = useState<CategoryLimit | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [limits, setLimits] = useState<CategoryLimit[]>([
-    {
-      id: 'l1',
-      category: 'Alimentação',
-      monthlyLimit: 1200,
-      currentSpending: 450.50
-    },
-    {
-      id: 'l2',
-      category: 'Transporte',
-      monthlyLimit: 500,
-      currentSpending: 520.00
-    }
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [limits, setLimits] = useState<CategoryLimit[]>([]);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
+
+  const fetchLimitsData = useCallback(async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      // 1. Fetch Limits
+      const { data: limitsData, error: limitsError } = await supabase
+        .from('category_limits')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (limitsError) throw limitsError;
+
+      // 2. Fetch Transactions for the current month to calculate spending
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { data: transData, error: transError } = await supabase
+        .from('transactions')
+        .select('amount, category')
+        .eq('user_id', user.id)
+        .eq('type', 'EXPENSE')
+        .gte('date', startOfMonth);
+
+      if (transError) throw transError;
+
+      // Calculate spending per category (normalize to UpperCase for matching)
+      const spendingMap: Record<string, number> = {};
+      transData?.forEach(t => {
+        const catKey = t.category?.toUpperCase();
+        if (catKey) {
+          spendingMap[catKey] = (spendingMap[catKey] || 0) + Number(t.amount);
+        }
+      });
+
+      // Map combined data
+      const mappedLimits: CategoryLimit[] = (limitsData || []).map(l => ({
+        id: l.id,
+        category: l.category,
+        monthlyLimit: Number(l.monthly_limit),
+        currentSpending: spendingMap[l.category?.toUpperCase()] || 0
+      }));
+
+      setLimits(mappedLimits);
+    } catch (err) {
+      console.error('Erro ao carregar limites:', err);
+      showToast('Erro ao carregar dados');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchLimitsData();
+  }, [fetchLimitsData]);
 
   const handleOpenAdd = () => {
     setEditingLimit(null);
@@ -45,28 +89,55 @@ const Limits: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveLimit = (data: { id?: string; category: string; value: number }) => {
-    if (data.id) {
-      setLimits(limits.map(l => l.id === data.id ? { ...l, category: data.category, monthlyLimit: data.value } : l));
+  const handleSaveLimit = async (data: { id?: string; category: string; value: number }) => {
+    if (!user) return;
+    try {
+      if (data.id) {
+        const { error } = await supabase
+          .from('category_limits')
+          .update({
+            category: data.category,
+            monthly_limit: data.value
+          })
+          .eq('id', data.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('category_limits')
+          .insert({
+            user_id: user.id,
+            category: data.category,
+            monthly_limit: data.value
+          });
+        if (error) throw error;
+      }
       showToast("Tudo certo por aqui 👌");
-    } else {
-      const newLimit: CategoryLimit = {
-        id: Math.random().toString(36).substr(2, 9),
-        category: data.category,
-        monthlyLimit: data.value,
-        currentSpending: 0 
-      };
-      setLimits([newLimit, ...limits]);
-      showToast("Gasto registrado com sucesso");
+      fetchLimitsData();
+    } catch (err) {
+      console.error('Erro ao salvar limite:', err);
+      showToast('Erro ao salvar');
     }
     setIsModalOpen(false);
     setEditingLimit(null);
   };
 
-  const deleteLimit = (id: string) => {
+  const deleteLimit = async (id: string) => {
+    if (!user) return;
     if (confirm('Deseja remover este limite?')) {
-      setLimits(limits.filter(l => l.id !== id));
-      showToast("Seu dim tá organizado");
+      try {
+        const { error } = await supabase
+          .from('category_limits')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+        showToast("Seu dim tá organizado");
+        fetchLimitsData();
+      } catch (err) {
+        console.error('Erro ao excluir limite:', err);
+        showToast('Erro ao excluir');
+      }
     }
   };
 
@@ -80,23 +151,29 @@ const Limits: React.FC = () => {
       )}
 
       <div className="flex items-center justify-between">
-         <h2 className="text-xl md:text-4xl font-black text-[#3A4F3C] uppercase tracking-tighter">Meus Limites</h2>
-         <button 
-           onClick={handleOpenAdd}
-           className="bg-[#3A4F3C] text-[#E6DCCB] px-4 py-2 md:px-8 md:py-3 rounded-xl font-black flex items-center space-x-2 shadow-xl hover:bg-[#2F3F31] transition-all active:scale-95 text-[8px] md:text-[10px] uppercase tracking-widest"
-         >
-            <Edit size={14} className="md:hidden" />
-            <span className="hidden md:inline">Novo Limite</span>
-            <span className="md:hidden">Novo</span>
-         </button>
+        <h2 className="text-xl md:text-4xl font-black text-[#3A4F3C] uppercase tracking-tighter">Meus Limites</h2>
+        <button
+          onClick={handleOpenAdd}
+          className="bg-[#3A4F3C] text-[#E6DCCB] px-4 py-2 md:px-8 md:py-3 rounded-xl font-black flex items-center space-x-2 shadow-xl hover:bg-[#2F3F31] transition-all active:scale-95 text-[8px] md:text-[10px] uppercase tracking-widest"
+        >
+          <Edit size={14} className="md:hidden" />
+          <span className="hidden md:inline">Novo Limite</span>
+          <span className="md:hidden">Novo</span>
+        </button>
       </div>
 
-      {limits.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 animate-pulse opacity-50">
+          <div className="w-12 h-12 border-4 border-[#3A4F3C]/20 border-t-[#3A4F3C] rounded-full animate-spin mb-4" />
+          <p className="text-[10px] font-black uppercase tracking-widest">Carregando seus limites...</p>
+        </div>
+      ) : limits.length === 0 ? (
         <div className="bg-white/40 backdrop-blur-md p-10 md:p-24 rounded-xl md:rounded-[3rem] shadow-sm border border-white/40 flex flex-col items-center justify-center text-center space-y-4">
-           <div className="text-[#3A4F3C]/40">
-              <p className="text-sm md:text-2xl font-black uppercase tracking-tight">Sem limites definidos.</p>
-              <p className="font-bold uppercase text-[7px] md:text-[10px] tracking-widest mt-2 max-w-xs mx-auto">Defina metas por categoria para manter seu orçamento sob controle.</p>
-           </div>
+          <div className="text-[#3A4F3C]/40">
+            <FolderTree size={40} className="mx-auto mb-4 opacity-20" />
+            <p className="text-sm md:text-2xl font-black uppercase tracking-tight">Sem limites definidos.</p>
+            <p className="font-bold uppercase text-[7px] md:text-[10px] tracking-widest mt-2 max-w-xs mx-auto">Defina metas por categoria para manter seu orçamento sob controle.</p>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
@@ -112,13 +189,13 @@ const Limits: React.FC = () => {
                     <h3 className="text-sm md:text-2xl font-black text-[#3A4F3C] uppercase tracking-tight leading-none mt-1">{limit.category}</h3>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <button 
+                    <button
                       onClick={() => handleOpenEdit(limit)}
                       className="p-1.5 md:p-2 text-[#3A4F3C]/20 hover:text-[#3A4F3C] transition-colors"
                     >
                       <Edit size={14} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => deleteLimit(limit.id)}
                       className="p-1.5 md:p-2 text-[#3A4F3C]/20 hover:text-[#9C4A3C] transition-colors"
                     >
@@ -135,7 +212,7 @@ const Limits: React.FC = () => {
                     </span>
                   </div>
                   <div className="w-full h-2.5 md:h-4 bg-black/5 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full rounded-full transition-all duration-1000 ${isOverLimit ? 'bg-[#9C4A3C]' : 'bg-[#3A4F3C]'}`}
                       style={{ width: `${Math.min(percent, 100)}%` }}
                     />
@@ -159,7 +236,7 @@ const Limits: React.FC = () => {
 
                 {isOverLimit && (
                   <div className="bg-[#9C4A3C]/10 text-[#9C4A3C] p-3 rounded-xl text-[7px] md:text-[10px] font-black flex items-center space-x-2 animate-pulse uppercase tracking-widest border border-[#9C4A3C]/20">
-                     <span>⚠️ Limite ultrapassado!</span>
+                    <span>⚠️ Limite ultrapassado!</span>
                   </div>
                 )}
               </div>
@@ -168,13 +245,13 @@ const Limits: React.FC = () => {
         </div>
       )}
 
-      <AddLimitModal 
-        isOpen={isModalOpen} 
+      <AddLimitModal
+        isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setEditingLimit(null);
-        }} 
-        onSave={handleSaveLimit} 
+        }}
+        onSave={handleSaveLimit}
         initialData={editingLimit}
       />
     </div>
