@@ -59,6 +59,22 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
 
   const [manageCategories, setManageCategories] = useState<CategoryStructure[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [cards, setCards] = useState<any[]>([]);
+
+  // Fetch cards from Supabase
+  const fetchCards = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setCards(data || []);
+    } catch (err) {
+      console.error('Erro ao carregar cartões:', err);
+    }
+  }, [user]);
 
   // Fetch categories from Supabase
   const fetchCategories = useCallback(async () => {
@@ -128,6 +144,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
         type: t.type,
         paymentMethod: t.payment_method,
         linkToTravel: t.link_to_travel,
+        cardId: t.card_id,
       })));
     } catch (err: any) {
       showToast('Erro ao carregar lançamentos');
@@ -138,9 +155,10 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   }, [user]);
 
   useEffect(() => {
+    fetchCards();
     fetchCategories();
     fetchTransactions();
-  }, [fetchCategories, fetchTransactions]);
+  }, [fetchCards, fetchCategories, fetchTransactions]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -261,6 +279,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
             category: data.category,
             subcategory: data.subcategory || null,
             payment_method: data.paymentMethod,
+            card_id: data.cardId || null,
             link_to_travel: data.linkToTravel || false,
           })
           .eq('id', data.id)
@@ -281,6 +300,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
             category: data.category,
             subcategory: data.subcategory || null,
             payment_method: data.paymentMethod,
+            card_id: data.cardId || null,
             link_to_travel: data.linkToTravel || false,
           });
 
@@ -591,6 +611,7 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
         isTravelModeActive={isTravelModeActive}
         travelName={travelName}
         categories={manageCategories}
+        cards={cards}
       />
     </PageLayout>
   );

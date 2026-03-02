@@ -32,6 +32,13 @@ const FALLBACK_CATEGORIES: CategoryData[] = [
   { name: 'OUTROS', type: 'INCOME', subcategories: [] },
 ];
 
+interface CardData {
+  id: string;
+  name: string;
+  lastDigits?: string;
+  status: string;
+}
+
 interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -40,6 +47,7 @@ interface AddTransactionModalProps {
   isTravelModeActive?: boolean;
   travelName?: string;
   categories?: CategoryData[];
+  cards?: CardData[];
 }
 
 const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
@@ -49,7 +57,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   initialData,
   isTravelModeActive = false,
   travelName = "",
-  categories
+  categories,
+  cards = []
 }) => {
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [description, setDescription] = useState('');
@@ -58,6 +67,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [value, setValue] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
+  const [cardId, setCardId] = useState('');
   const [linkToTravel, setLinkToTravel] = useState(false);
   const [customSubcategory, setCustomSubcategory] = useState('');
 
@@ -84,6 +94,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setValue(initialData.amount?.toString() || initialData.value?.toString() || '');
       setDate(initialData.date || new Date().toISOString().split('T')[0]);
       setPaymentMethod(initialData.paymentMethod || 'Dinheiro');
+      setCardId(initialData.cardId || '');
       setLinkToTravel(initialData.linkToTravel || false);
     } else {
       setType('EXPENSE');
@@ -94,6 +105,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setValue('');
       setDate(new Date().toISOString().split('T')[0]);
       setPaymentMethod('Dinheiro');
+      setCardId('');
       setLinkToTravel(isTravelModeActive);
     }
   }, [initialData, isOpen, isTravelModeActive]);
@@ -122,6 +134,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         date,
         category,
         paymentMethod,
+        cardId: paymentMethod === 'Cartão crédito' ? cardId : null,
         linkToTravel
       });
     }
@@ -265,18 +278,41 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
           )}
 
-          <div className="space-y-1">
-            <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Método de Pagamento</label>
-            <div className="relative">
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none cursor-pointer"
-              >
-                {PAYMENT_METHODS.map(method => <option key={method} value={method}>{method}</option>)}
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3A4F3C]/40 pointer-events-none" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Método de Pagamento</label>
+              <div className="relative">
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none cursor-pointer"
+                >
+                  {PAYMENT_METHODS.map(method => <option key={method} value={method}>{method}</option>)}
+                </select>
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3A4F3C]/40 pointer-events-none" />
+              </div>
             </div>
+
+            {paymentMethod === 'Cartão crédito' && (
+              <div className="space-y-1 animate-in slide-in-from-top-2">
+                <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1 text-[#9C4A3C]">Vincular Cartão</label>
+                <div className="relative">
+                  <select
+                    value={cardId}
+                    onChange={(e) => setCardId(e.target.value)}
+                    className="w-full bg-[#9C4A3C]/5 border border-[#9C4A3C]/20 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none cursor-pointer"
+                  >
+                    <option value="">Selecione o cartão...</option>
+                    {cards.filter((c: any) => c.status === 'Ativo').map((card: any) => (
+                      <option key={card.id} value={card.id}>
+                        {card.name} {card.lastDigits ? `(•••• ${card.lastDigits})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9C4A3C]/40 pointer-events-none" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col-reverse md:flex-row md:space-x-3 pt-2 gap-2">
@@ -288,7 +324,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </button>
             <button
               onClick={handleSave}
-              disabled={!category || !value || !description}
+              disabled={!category || !value || !description || (paymentMethod === 'Cartão crédito' && !cardId)}
               className="w-full md:flex-[2] py-4 md:py-5 rounded-xl font-black text-[#E6DCCB] bg-[#3A4F3C] hover:bg-[#2F3F31] shadow-2xl transition-all active:scale-95 uppercase text-[9px] tracking-widest disabled:opacity-20 disabled:cursor-not-allowed"
             >
               {initialData ? 'Confirmar Alterações' : 'Lançar Agora'}

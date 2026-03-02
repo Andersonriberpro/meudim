@@ -87,8 +87,15 @@ const FixedExpenses: React.FC = () => {
   const handleSave = async (data: { id?: string; label: string; amount: number; dueDate: string; paid: boolean }) => {
     if (!user) return;
     try {
+      let isEffectivelyNewPaid = false;
+
       if (data.id) {
         // Update existing
+        const prev = expenses.find(e => e.id === data.id);
+        if (data.paid && (!prev || !prev.paid)) {
+          isEffectivelyNewPaid = true;
+        }
+
         const { error } = await supabase
           .from('fixed_expenses')
           .update({
@@ -104,6 +111,10 @@ const FixedExpenses: React.FC = () => {
         showToast("Tudo certo por aqui 👌");
       } else {
         // Insert new
+        if (data.paid) {
+          isEffectivelyNewPaid = true;
+        }
+
         const { error } = await supabase
           .from('fixed_expenses')
           .insert({
@@ -117,6 +128,28 @@ const FixedExpenses: React.FC = () => {
         if (error) throw error;
         showToast("Tudo certo por aqui 👌");
       }
+
+      // Se marcou como pago (ou criou já pago), cria o lançamento automático
+      if (isEffectivelyNewPaid) {
+        const { error: transError } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: user.id,
+            description: data.label,
+            amount: data.amount,
+            date: new Date().toISOString().split('T')[0],
+            type: 'EXPENSE',
+            category: 'FIXO',
+            payment_method: 'Pix',
+          });
+
+        if (transError) {
+          console.error('Erro ao gerar lançamento:', transError);
+        } else {
+          showToast("Lançamento gerado em despesas! 💸");
+        }
+      }
+
       await fetchExpenses();
     } catch (err: any) {
       showToast('Erro ao salvar gasto fixo');
@@ -157,6 +190,28 @@ const FixedExpenses: React.FC = () => {
         .eq('user_id', user.id);
 
       if (error) throw error;
+
+      // Se marcou como pago, cria o lançamento automático em transações
+      if (newPaid) {
+        const { error: transError } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: user.id,
+            description: exp.label,
+            amount: exp.amount,
+            date: new Date().toISOString().split('T')[0],
+            type: 'EXPENSE',
+            category: 'FIXO',
+            payment_method: 'Pix',
+          });
+
+        if (transError) {
+          console.error('Erro ao gerar lançamento:', transError);
+        } else {
+          showToast("Lançamento gerado em despesas! 💸");
+        }
+      }
+
       setExpenses(expenses.map(e => e.id === id ? { ...e, paid: newPaid } : e));
     } catch (err: any) {
       showToast('Erro ao atualizar status');
