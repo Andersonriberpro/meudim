@@ -124,13 +124,24 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     const finalSubcategory = subcategory === 'OUTRO' && customSubcategory.trim()
       ? customSubcategory.trim()
       : subcategory;
+
+    // Robust parsing for BRL currency format (e.g., 1.200,50)
+    // 1. Remove thousand separators (.)
+    // 2. Replace decimal separator (,) with dot (.)
+    const parsedValue = parseFloat(value.replace(/\./g, '').replace(',', '.'));
+
+    if (isNaN(parsedValue)) {
+      alert("Por favor, insira um valor válido.");
+      return;
+    }
+
     if (onSave) {
       onSave({
         id: initialData?.id,
         type,
         description,
         subcategory: finalSubcategory,
-        amount: parseFloat(value.replace(',', '.')),
+        amount: parsedValue,
         date,
         category,
         paymentMethod,

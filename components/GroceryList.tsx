@@ -1,12 +1,15 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ICONS } from '../constants';
-import { ShoppingCart, CheckCircle, Edit2, Check, X as CloseIcon, PlusCircle } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Edit2, Check, X as CloseIcon, PlusCircle, History, ChevronLeft, Trash2, Calendar } from 'lucide-react';
 import { GroceryItem } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const GroceryList: React.FC = () => {
+  const { user } = useAuth();
   // Navigation State
   const [isInList, setIsInList] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Budget State
   const [isEditingLimit, setIsEditingLimit] = useState(false);
@@ -14,10 +17,13 @@ const GroceryList: React.FC = () => {
   const [tempLimit, setTempLimit] = useState('1.200,00');
 
   // Accumulated spending for the month
-  const [spentThisMonth, setSpentThisMonth] = useState(450.00);
+  const [spentThisMonth, setSpentThisMonth] = useState(0);
 
   // Items State
   const [items, setItems] = useState<GroceryItem[]>([]);
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
   const [newItemPrice, setNewItemPrice] = useState('');
@@ -28,16 +34,123 @@ const GroceryList: React.FC = () => {
 
   // UI feedback for finishing purchase
   const [showSuccess, setShowSuccess] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchGroceryData = useCallback(async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      // 1. Fetch Items (active)
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('grocery_items')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('purchased_at', null)
+        .order('created_at', { ascending: false });
+
+      if (itemsError) throw itemsError;
+
+      setItems((itemsData || []).map(i => ({
+        id: i.id,
+        name: i.name,
+        quantity: i.quantity,
+        estimatedPrice: Number(i.estimated_price),
+        inCart: i.in_cart
+      })));
+
+      // 2. Fetch Budget
+      const { data: budgetData, error: budgetError } = await supabase
+        .from('grocery_budgets')
+        .select('total_limit')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (budgetError) throw budgetError;
+      if (budgetData) {
+        setTotalLimit(Number(budgetData.total_limit));
+      }
+
+      // 3. Fetch Transactions for the current month
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { data: transData, error: transError } = await supabase
+        .from('transactions')
+        .select('amount, category, subcategory')
+        .eq('user_id', user.id)
+        .eq('type', 'EXPENSE')
+        .gte('date', startOfMonth);
+
+      if (transError) throw transError;
+
+      const totalSpent = (transData || []).reduce((sum, t) => {
+        const cat = t.category?.toUpperCase();
+        const sub = t.subcategory?.toUpperCase();
+        // Match Category=Supermercado OR (Category=Alimentação AND Subcategory=Mercado)
+        if (cat === 'SUPERMERCADO' || cat === 'MERCADO' || (cat === 'ALIMENTAÇÃO' && sub === 'MERCADO')) {
+          return sum + Number(t.amount);
+        }
+        return sum;
+      }, 0);
+      setSpentThisMonth(totalSpent);
+
+    } catch (err) {
+      console.error('Erro ao carregar dados do mercado:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('grocery_items')
+        .select('*')
+        .eq('user_id', user.id)
+        .not('purchased_at', 'is', null)
+        .order('purchased_at', { ascending: false });
+
+      if (error) throw error;
+      setHistoryItems(data || []);
+    } catch (err) {
+      console.error('Erro ao carregar histórico:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchGroceryData();
+  }, [fetchGroceryData]);
 
   const handleEditLimitClick = () => {
     setTempLimit(totalLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
     setIsEditingLimit(true);
   };
 
-  const handleSaveLimit = () => {
+  const handleSaveLimit = async () => {
+    if (!user) return;
     const value = parseFloat(tempLimit.replace(/\./g, '').replace(',', '.'));
     if (!isNaN(value)) {
-      setTotalLimit(value);
+      try {
+        const { error } = await supabase
+          .from('grocery_budgets')
+          .upsert({
+            user_id: user.id,
+            total_limit: value,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+
+        if (error) throw error;
+        setTotalLimit(value);
+        showToast("Limite atualizado!");
+      } catch (err) {
+        console.error('Erro ao salvar limite:', err);
+        showToast("Erro ao salvar");
+      }
     }
     setIsEditingLimit(false);
   };
@@ -46,28 +159,70 @@ const GroceryList: React.FC = () => {
     setIsEditingLimit(false);
   };
 
-  const addItem = () => {
-    if (!newItemName) return;
+  const addItem = async () => {
+    if (!newItemName || !user) return;
     const price = parseFloat(newItemPrice.replace(',', '.')) || 0;
-    const item: GroceryItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newItemName,
-      quantity: newItemQty,
-      estimatedPrice: price,
-      inCart: false
-    };
-    setItems([...items, item]);
-    setNewItemName('');
-    setNewItemQty(1);
-    setNewItemPrice('');
+    try {
+      const { data, error } = await supabase
+        .from('grocery_items')
+        .insert({
+          user_id: user.id,
+          name: newItemName,
+          quantity: newItemQty,
+          estimated_price: price,
+          in_cart: false
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const item: GroceryItem = {
+        id: data.id,
+        name: data.name,
+        quantity: data.quantity,
+        estimatedPrice: Number(data.estimated_price),
+        inCart: data.in_cart
+      };
+      setItems([item, ...items]);
+      setNewItemName('');
+      setNewItemQty(1);
+      setNewItemPrice('');
+    } catch (err) {
+      console.error('Erro ao adicionar item:', err);
+    }
   };
 
-  const deleteItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
+  const deleteItem = async (id: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from('grocery_items')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setItems(items.filter(item => item.id !== id));
+    } catch (err) {
+      console.error('Erro ao excluir item:', err);
+    }
   };
 
-  const toggleInCart = (id: string) => {
-    setItems(items.map(item => item.id === id ? { ...item, inCart: !item.inCart } : item));
+  const toggleInCart = async (id: string) => {
+    if (!user) return;
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    try {
+      const { error } = await supabase
+        .from('grocery_items')
+        .update({ in_cart: !item.inCart })
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setItems(items.map(i => i.id === id ? { ...i, inCart: !i.inCart } : i));
+    } catch (err) {
+      console.error('Erro ao atualizar item:', err);
+    }
   };
 
   const startEditingItem = (item: GroceryItem) => {
@@ -75,27 +230,74 @@ const GroceryList: React.FC = () => {
     setEditingPriceValue(item.estimatedPrice.toString().replace('.', ','));
   };
 
-  const saveEditedPrice = (id: string) => {
+  const saveEditedPrice = async (id: string) => {
+    if (!user) return;
     const newPrice = parseFloat(editingPriceValue.replace(',', '.')) || 0;
-    setItems(items.map(item => item.id === id ? { ...item, estimatedPrice: newPrice } : item));
-    setEditingItemId(null);
+    try {
+      const { error } = await supabase
+        .from('grocery_items')
+        .update({ estimated_price: newPrice })
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setItems(items.map(item => item.id === id ? { ...item, estimatedPrice: newPrice } : item));
+      setEditingItemId(null);
+    } catch (err) {
+      console.error('Erro ao salvar preço:', err);
+    }
   };
 
-  const handleFinishPurchase = () => {
+  const handleFinishPurchase = async () => {
+    if (!user) return;
     const cartItems = items.filter(i => i.inCart);
     if (cartItems.length === 0) return;
 
     const purchaseTotal = cartItems.reduce((acc, curr) => acc + (curr.estimatedPrice * curr.quantity), 0);
 
-    // Update finalized monthly spending
-    setSpentThisMonth(prev => prev + purchaseTotal);
+    try {
+      const purchasedAt = new Date().toISOString();
+      const itemIds = cartItems.map(i => i.id);
 
-    // Remove finished items from the list
-    setItems(items.filter(i => !i.inCart));
+      // 1. Mark items as purchased
+      const { error: updateError } = await supabase
+        .from('grocery_items')
+        .update({ purchased_at: purchasedAt })
+        .in('id', itemIds)
+        .eq('user_id', user.id);
 
-    // Show feedback
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+      if (updateError) throw updateError;
+
+      // 2. Automatically create a transaction in 'SUPERMERCADO'
+      const { error: transError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          type: 'EXPENSE',
+          amount: purchaseTotal,
+          date: new Date().toISOString().split('T')[0],
+          category: 'SUPERMERCADO',
+          description: `Compra de Supermercado - ${cartItems.length} itens`,
+          payment_method: 'Cartão débito' // Default to debit, user can change later
+        });
+
+      if (transError) throw transError;
+
+      // Update UI state
+      setSpentThisMonth(prev => prev + purchaseTotal);
+      setItems(items.filter(i => !i.inCart));
+
+      // Show feedback
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+      showToast("Compra registrada no extrato!");
+
+      // If history is open, refresh it
+      if (showHistory) fetchHistory();
+
+    } catch (err) {
+      console.error('Erro ao finalizar compra:', err);
+      showToast("Erro ao finalizar");
+    }
   };
 
   const totalInCart = items
@@ -141,14 +343,77 @@ const GroceryList: React.FC = () => {
     );
   }
 
+  // Interface do Histórico
+  if (showHistory) {
+    const groupedHistory = historyItems.reduce((acc: any, item: any) => {
+      const date = new Date(item.purchased_at).toLocaleDateString('pt-BR');
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(item);
+      return acc;
+    }, {});
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 pb-20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button onClick={() => setShowHistory(false)} className="p-2 bg-white/60 rounded-xl hover:bg-white transition-all text-[#3A4F3C]">
+              <ChevronLeft size={20} />
+            </button>
+            <h2 className="text-xl md:text-3xl font-black text-[#3A4F3C] uppercase tracking-tighter">Histórico de Compras</h2>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {Object.keys(groupedHistory).length === 0 ? (
+            <div className="bg-white/40 p-10 rounded-3xl text-center opacity-40">
+              <History size={40} className="mx-auto mb-3" />
+              <p className="font-black uppercase text-[10px] tracking-widest">Nenhuma compra anterior.</p>
+            </div>
+          ) : (
+            Object.entries(groupedHistory).map(([date, groupItems]: [string, any]) => {
+              const total = groupItems.reduce((sum: number, i: any) => sum + (Number(i.estimated_price) * i.quantity), 0);
+              return (
+                <div key={date} className="bg-white/40 backdrop-blur-md p-6 rounded-3xl border border-white/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-black/5 pb-4">
+                    <div className="flex items-center space-x-2 text-[#3A4F3C]/60">
+                      <Calendar size={14} />
+                      <span className="font-black uppercase text-[10px] tracking-widest">{date}</span>
+                    </div>
+                    <span className="font-black text-sm text-[#3A4F3C]">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {groupItems.map((item: any) => (
+                      <div key={item.id} className="flex justify-between items-center text-[10px] font-bold text-[#3A4F3C]/60">
+                        <span className="uppercase">{item.quantity}x {item.name}</span>
+                        <span>R$ {(Number(item.estimated_price) * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Interface Completa da Lista
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-2xl md:text-4xl font-black text-[#3A4F3C] uppercase tracking-tighter">Mercado</h2>
         <div className="flex flex-wrap gap-2">
-          <button className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-white/60 px-4 py-3 rounded-xl border border-black/5 text-[#3A4F3C] font-black uppercase tracking-widest text-[9px]">
-            {ICONS.History} <span>Histórico</span>
+          {toast && (
+            <div className="fixed top-20 md:top-8 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-auto md:right-8 z-[300] bg-[#6E8F7A] text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border border-white/20">
+              <span className="font-black uppercase text-[9px] tracking-tight">{toast}</span>
+            </div>
+          )}
+          <button
+            onClick={() => { setShowHistory(true); fetchHistory(); }}
+            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-white/60 px-4 py-3 rounded-xl border border-black/5 text-[#3A4F3C] font-black uppercase tracking-widest text-[9px]"
+          >
+            <History size={16} /> <span>Histórico</span>
           </button>
           <button
             onClick={() => setIsInList(false)}
@@ -330,8 +595,8 @@ const GroceryList: React.FC = () => {
           onClick={handleFinishPurchase}
           disabled={items.filter(i => i.inCart).length === 0}
           className={`w-full md:w-auto px-8 md:px-10 py-4 md:py-5 rounded-2xl font-black text-sm md:text-xl flex items-center justify-center space-x-3 transition-all ${items.filter(i => i.inCart).length > 0
-              ? 'bg-[#3A4F3C] text-[#E6DCCB] shadow-xl active:scale-95'
-              : 'bg-[#3A4F3C]/20 text-[#3A4F3C]/40 cursor-not-allowed'
+            ? 'bg-[#3A4F3C] text-[#E6DCCB] shadow-xl active:scale-95'
+            : 'bg-[#3A4F3C]/20 text-[#3A4F3C]/40 cursor-not-allowed'
             }`}
         >
           <ShoppingCart size={24} />

@@ -60,6 +60,13 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   const [manageCategories, setManageCategories] = useState<CategoryStructure[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const MONTHS = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
 
   // Fetch cards from Supabase
   const fetchCards = useCallback(async () => {
@@ -338,11 +345,14 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
     setIsAddModalOpen(false);
   };
 
-  const filteredTransactions = filterCategory === 'Todos'
-    ? transactions
-    : transactions.filter(t => t.category === filterCategory);
+  const filteredTransactions = transactions.filter(t => {
+    const tDate = new Date(t.date);
+    const dateMatch = tDate.getMonth() === selectedMonth && tDate.getFullYear() === selectedYear;
+    const categoryMatch = filterCategory === 'Todos' || t.category === filterCategory;
+    return dateMatch && categoryMatch;
+  });
 
-  const balance = transactions.reduce((acc, curr) => curr.type === 'INCOME' ? acc + curr.amount : acc - curr.amount, 0);
+  const balance = filteredTransactions.reduce((acc, curr) => curr.type === 'INCOME' ? acc + curr.amount : acc - curr.amount, 0);
 
   const suggestedCatsCloud = useMemo(() => {
     const existing = manageCategories.map(c => c.name);
@@ -394,9 +404,27 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
             <div className="space-y-1">
               <label className="text-[7px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Período</label>
               <div className="relative">
-                <select className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none">
-                  <option>Fevereiro / 2026</option>
-                  <option>Janeiro / 2026</option>
+                <select
+                  value={`${selectedMonth}-${selectedYear}`}
+                  onChange={(e) => {
+                    const [m, y] = e.target.value.split('-').map(Number);
+                    setSelectedMonth(m);
+                    setSelectedYear(y);
+                  }}
+                  className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 outline-none font-black text-[#3A4F3C] text-[9px] uppercase appearance-none"
+                >
+                  {/* Generate last 6 months + current */}
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - i);
+                    const m = d.getMonth();
+                    const y = d.getFullYear();
+                    return (
+                      <option key={`${m}-${y}`} value={`${m}-${y}`}>
+                        {MONTHS[m]} / {y}
+                      </option>
+                    );
+                  })}
                 </select>
                 <ChevronDown size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3A4F3C]/40 pointer-events-none" />
               </div>

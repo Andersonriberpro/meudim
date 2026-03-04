@@ -45,6 +45,7 @@ export interface WishlistItem {
 export interface WishlistGoal {
   id: string;
   name: string;
+  targetAmount?: number;
   items: WishlistItem[];
 }
 

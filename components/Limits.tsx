@@ -63,7 +63,7 @@ const Limits: React.FC = () => {
         id: l.id,
         category: l.category,
         monthlyLimit: Number(l.monthly_limit),
-        currentSpending: spendingMap[l.category?.toUpperCase()] || 0
+        currentSpending: spendingMap[(l.category || '').trim().toUpperCase()] || 0
       }));
 
       setLimits(mappedLimits);
@@ -219,16 +219,16 @@ const Limits: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-end pt-1">
-                  <div>
-                    <p className="text-[7px] md:text-[9px] font-black text-[#3A4F3C]/40 uppercase tracking-widest">Gasto Atual</p>
-                    <p className={`text-base md:text-2xl font-black tracking-tighter ${isOverLimit ? 'text-[#9C4A3C]' : 'text-[#3A4F3C]'}`}>
+                <div className="flex flex-col md:grid md:grid-cols-2 gap-4 pt-1">
+                  <div className="flex flex-col">
+                    <p className="text-[7px] md:text-[9px] font-black text-[#3A4F3C]/40 uppercase tracking-widest leading-tight">Gasto Atual</p>
+                    <p className={`text-base md:text-2xl font-black tracking-tighter leading-tight ${isOverLimit ? 'text-[#9C4A3C]' : 'text-[#3A4F3C]'}`}>
                       R$ {limit.currentSpending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[7px] md:text-[9px] font-black text-[#3A4F3C]/40 uppercase tracking-widest">Limite</p>
-                    <p className="text-base md:text-2xl font-black text-[#3A4F3C] tracking-tighter">
+                  <div className="flex flex-col md:items-end md:text-right">
+                    <p className="text-[7px] md:text-[9px] font-black text-[#3A4F3C]/40 uppercase tracking-widest leading-tight">Limite</p>
+                    <p className="text-base md:text-2xl font-black text-[#3A4F3C] tracking-tighter leading-tight">
                       R$ {limit.monthlyLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
                   </div>
