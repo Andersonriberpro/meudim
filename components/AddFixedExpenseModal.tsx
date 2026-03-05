@@ -5,26 +5,29 @@ import { X } from 'lucide-react';
 interface AddFixedExpenseModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { id?: string; label: string; amount: number; dueDate: string; paid: boolean }) => void;
-    initialData?: { id: string; label: string; amount: number; dueDate: string; paid: boolean } | null;
+    onSave: (data: { id?: string; label: string; amount: number; issueDate: string; dueDate: string; paid: boolean }) => void;
+    initialData?: { id: string; label: string; amount: number; issueDate: string; dueDate: string; paid: boolean } | null;
 }
 
 const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
     const [label, setLabel] = useState('');
     const [amount, setAmount] = useState('');
-    const [dueDay, setDueDay] = useState('');
+    const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+    const [dueDate, setDueDate] = useState('');
     const [paid, setPaid] = useState(false);
 
     useEffect(() => {
         if (initialData && isOpen) {
             setLabel(initialData.label || '');
             setAmount(initialData.amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '');
-            setDueDay(initialData.dueDate?.replace('Dia ', '') || '');
+            setIssueDate(initialData.issueDate || new Date().toISOString().split('T')[0]);
+            setDueDate(initialData.dueDate || '');
             setPaid(initialData.paid || false);
         } else if (isOpen) {
             setLabel('');
             setAmount('');
-            setDueDay('');
+            setIssueDate(new Date().toISOString().split('T')[0]);
+            setDueDate('');
             setPaid(false);
         }
     }, [initialData, isOpen]);
@@ -32,12 +35,13 @@ const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onC
     if (!isOpen) return null;
 
     const handleSave = () => {
-        if (!label || !amount) return;
+        if (!label || !amount || !dueDate) return;
         onSave({
             id: initialData?.id,
             label,
             amount: parseFloat(amount.replace(/\./g, '').replace(',', '.')) || 0,
-            dueDate: dueDay ? `Dia ${dueDay}` : '',
+            issueDate,
+            dueDate,
             paid
         });
         onClose();
@@ -73,7 +77,7 @@ const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onC
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
                             <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Valor *</label>
                             <div className="relative">
@@ -88,17 +92,24 @@ const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onC
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Vencimento (Dia)</label>
+                            <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1 text-center md:text-left">Data Vencimento *</label>
                             <input
-                                type="number"
-                                min={1}
-                                max={31}
-                                value={dueDay}
-                                onChange={(e) => setDueDay(e.target.value)}
-                                placeholder="Ex: 10"
-                                className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 font-black text-[#3A4F3C] text-center text-xs"
+                                type="date"
+                                value={dueDate}
+                                onChange={(e) => setDueDate(e.target.value)}
+                                className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 font-black text-[#3A4F3C] text-xs uppercase"
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Data Lançamento *</label>
+                        <input
+                            type="date"
+                            value={issueDate}
+                            onChange={(e) => setIssueDate(e.target.value)}
+                            className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 font-black text-[#3A4F3C] text-xs uppercase"
+                        />
                     </div>
 
                     <div className="flex items-center space-x-3 bg-white/40 p-4 rounded-xl border border-black/5">
@@ -108,7 +119,7 @@ const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onC
                         >
                             {paid && <span className="text-xs font-black">✓</span>}
                         </button>
-                        <span className="text-[9px] font-black text-[#3A4F3C] uppercase tracking-widest">Já foi pago este mês</span>
+                        <span className="text-[9px] font-black text-[#3A4F3C] uppercase tracking-widest text-center">Já foi pago</span>
                     </div>
 
                     <div className="flex flex-col-reverse md:flex-row md:space-x-3 pt-2 gap-2">
@@ -120,8 +131,8 @@ const AddFixedExpenseModal: React.FC<AddFixedExpenseModalProps> = ({ isOpen, onC
                         </button>
                         <button
                             onClick={handleSave}
-                            disabled={!label || !amount}
-                            className={`w-full md:flex-[2] py-4 rounded-xl font-black text-[#E6DCCB] shadow-xl uppercase text-[9px] tracking-widest transition-all ${label && amount ? 'bg-[#3A4F3C]' : 'bg-[#3A4F3C]/20 text-[#3A4F3C]/40'}`}
+                            disabled={!label || !amount || !dueDate}
+                            className={`w-full md:flex-[2] py-4 rounded-xl font-black text-[#E6DCCB] shadow-xl uppercase text-[9px] tracking-widest transition-all ${label && amount && dueDate ? 'bg-[#3A4F3C]' : 'bg-[#3A4F3C]/20 text-[#3A4F3C]/40'}`}
                         >
                             Confirmar
                         </button>

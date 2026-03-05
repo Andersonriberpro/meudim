@@ -10,6 +10,7 @@ interface FixedExpense {
   id: string;
   label: string;
   amount: number;
+  issueDate: string;
   dueDate: string;
   paid: boolean;
 }
@@ -18,9 +19,10 @@ const FixedExpenses: React.FC = () => {
   const { user } = useAuth();
   const [expenses, setExpenses] = useState<FixedExpense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<FixedExpense | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -28,15 +30,20 @@ const FixedExpenses: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Fetch fixed expenses from Supabase
   const fetchExpenses = useCallback(async () => {
     if (!user) return;
+    setIsLoading(true);
     try {
+      const firstDay = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0];
+      const lastDay = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
+
       const { data, error } = await supabase
         .from('fixed_expenses')
         .select('*')
         .eq('user_id', user.id)
-        .order('label');
+        .gte('full_due_date', firstDay)
+        .lte('full_due_date', lastDay)
+        .order('full_due_date');
 
       if (error) throw error;
 
@@ -44,7 +51,8 @@ const FixedExpenses: React.FC = () => {
         id: e.id,
         label: e.label,
         amount: Number(e.amount),
-        dueDate: e.due_date || '',
+        issueDate: e.issue_date || '',
+        dueDate: e.full_due_date || '',
         paid: e.paid || false,
       })));
     } catch (err: any) {
@@ -53,7 +61,7 @@ const FixedExpenses: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, selectedMonth, selectedYear]);
 
   useEffect(() => {
     fetchExpenses();
@@ -63,15 +71,10 @@ const FixedExpenses: React.FC = () => {
     const totalMensal = expenses.reduce((acc, e) => acc + e.amount, 0);
     const pago = expenses.filter(e => e.paid).reduce((acc, e) => acc + e.amount, 0);
     const pendente = totalMensal - pago;
-    const pendentes = expenses.filter(e => !e.paid);
-    const proximoVenc = pendentes.length > 0
-      ? pendentes.sort((a, b) => {
-        const dayA = parseInt(a.dueDate.replace('Dia ', '')) || 99;
-        const dayB = parseInt(b.dueDate.replace('Dia ', '')) || 99;
-        return dayA - dayB;
-      })[0]?.dueDate || '—'
-      : '—';
-    return { totalMensal, pago, pendente, proximoVenc };
+    const pendentes = expenses.filter(e => !e.paid).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    const nextDue = pendentes[0]?.dueDate ? new Date(pendentes[0].dueDate).toLocaleDateString('pt-BR') : '—';
+
+    return { totalMensal, pago, pendente, nextDue };
   }, [expenses]);
 
   const handleOpenAdd = () => {
@@ -84,13 +87,12 @@ const FixedExpenses: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (data: { id?: string; label: string; amount: number; dueDate: string; paid: boolean }) => {
+  const handleSave = async (data: { id?: string; label: string; amount: number; issueDate: string; dueDate: string; paid: boolean }) => {
     if (!user) return;
     try {
       let isEffectivelyNewPaid = false;
 
       if (data.id) {
-        // Update existing
         const prev = expenses.find(e => e.id === data.id);
         if (data.paid && (!prev || !prev.paid)) {
           isEffectivelyNewPaid = true;
@@ -101,7 +103,8 @@ const FixedExpenses: React.FC = () => {
           .update({
             label: data.label,
             amount: data.amount,
-            due_date: data.dueDate,
+            issue_date: data.issueDate,
+            full_due_date: data.dueDate,
             paid: data.paid,
           })
           .eq('id', data.id)
@@ -110,10 +113,7 @@ const FixedExpenses: React.FC = () => {
         if (error) throw error;
         showToast("Tudo certo por aqui 👌");
       } else {
-        // Insert new
-        if (data.paid) {
-          isEffectivelyNewPaid = true;
-        }
+        if (data.paid) isEffectivelyNewPaid = true;
 
         const { error } = await supabase
           .from('fixed_expenses')
@@ -121,7 +121,8 @@ const FixedExpenses: React.FC = () => {
             user_id: user.id,
             label: data.label,
             amount: data.amount,
-            due_date: data.dueDate,
+            issue_date: data.issueDate,
+            full_due_date: data.dueDate,
             paid: data.paid,
           });
 
@@ -129,7 +130,6 @@ const FixedExpenses: React.FC = () => {
         showToast("Tudo certo por aqui 👌");
       }
 
-      // Se marcou como pago (ou criou já pago), cria o lançamento automático
       if (isEffectivelyNewPaid) {
         const { error: transError } = await supabase
           .from('transactions')
@@ -143,11 +143,7 @@ const FixedExpenses: React.FC = () => {
             payment_method: 'Pix',
           });
 
-        if (transError) {
-          console.error('Erro ao gerar lançamento:', transError);
-        } else {
-          showToast("Lançamento gerado em despesas! 💸");
-        }
+        if (!transError) showToast("Lançamento gerado em despesas! 💸");
       }
 
       await fetchExpenses();
@@ -233,7 +229,7 @@ const FixedExpenses: React.FC = () => {
           { label: 'Total Mensal', amount: `R$ ${stats.totalMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: <Calendar size={18} /> },
           { label: 'Pago', amount: `R$ ${stats.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-[#6E8F7A]' },
           { label: 'Pendente', amount: `R$ ${stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'text-[#9C4A3C]' },
-          { label: 'Próximo Venc.', amount: stats.proximoVenc },
+          { label: 'Próximo Venc.', amount: stats.nextDue },
         ].map((stat, idx) => (
           <Card key={idx} className="p-4 flex flex-col justify-center">
             <span className="text-[7px] font-black text-[#3A4F3C]/40 uppercase tracking-widest">{stat.label}</span>
@@ -241,6 +237,38 @@ const FixedExpenses: React.FC = () => {
           </Card>
         ))}
       </div>
+
+      <Card className="grid grid-cols-2 gap-3 p-4 md:p-8">
+        <div className="space-y-1">
+          <label className="text-[7px] md:text-[10px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Ano</label>
+          <div className="relative">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 font-black text-[#3A4F3C] text-[9px] uppercase appearance-none outline-none"
+            >
+              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <Calendar size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3A4F3C]/30 pointer-events-none" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[7px] md:text-[10px] font-black text-[#3A4F3C]/40 uppercase tracking-widest ml-1">Mês</label>
+          <div className="relative">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="w-full bg-white/60 border border-black/5 rounded-xl px-4 py-3 font-black text-[#3A4F3C] text-[9px] uppercase appearance-none outline-none"
+            >
+              {[
+                'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+              ].map((m, i) => <option key={m} value={i}>{m}</option>)}
+            </select>
+            <Calendar size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3A4F3C]/30 pointer-events-none" />
+          </div>
+        </div>
+      </Card>
 
       <Card className="p-4 md:p-8">
         <div className="flex items-center justify-between mb-6">
@@ -276,7 +304,10 @@ const FixedExpenses: React.FC = () => {
                   </button>
                   <div>
                     <h4 className="text-xs md:text-sm font-black text-[#3A4F3C] uppercase">{exp.label}</h4>
-                    <p className="text-[8px] font-bold text-[#3A4F3C]/40 uppercase">{exp.dueDate}</p>
+                    <div className="flex flex-col md:flex-row md:space-x-3">
+                      <p className="text-[7px] font-bold text-[#3A4F3C]/40 uppercase">Venc: {new Date(exp.dueDate).toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[7px] font-bold text-[#3A4F3C]/20 uppercase italic">Lancto: {new Date(exp.issueDate).toLocaleDateString('pt-BR')}</p>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
