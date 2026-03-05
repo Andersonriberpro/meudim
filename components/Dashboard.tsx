@@ -10,6 +10,7 @@ import Card from './ui/Card';
 import Toast from './ui/Toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useAchievements } from '../hooks/useAchievements';
 
 interface DashboardProps {
   onViewChange: (view: View) => void;
@@ -42,6 +43,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const userName = userProfile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
   const firstName = userName.split(' ')[0];
   const avatarUrl = userProfile?.avatar_url;
+  const { level, completionPercentage } = useAchievements();
 
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -154,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex flex-col mt-0.5">
               <p className="text-[#3A4F3C] font-black uppercase text-[8px] md:text-[10px] tracking-tight opacity-70">Meu Dim <span className="opacity-40 italic font-medium">"seu dinheiro no controle"</span></p>
               <div className="flex items-center space-x-2 mt-1">
-                <span className="bg-[#6E8F7A] text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">15 DIAS 🔥</span>
+                <span className="bg-[#6E8F7A] text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">{level}</span>
               </div>
             </div>
           </div>
@@ -182,7 +184,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="text-left">
               <h3 className="text-sm md:text-lg font-black uppercase tracking-tighter leading-none">Conquistas</h3>
               <p className="text-[7px] font-bold uppercase opacity-60 tracking-widest mt-1">
-                25% concluído
+                {completionPercentage}% CONCLUÍDO
               </p>
             </div>
           </div>
