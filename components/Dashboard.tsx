@@ -45,20 +45,30 @@ const Dashboard: React.FC<DashboardProps> = ({
   const avatarUrl = userProfile?.avatar_url;
   const { level, completionPercentage } = useAchievements();
 
+  const MONTHS = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [monthlyTotals, setMonthlyTotals] = useState({ income: 0, expense: 0 });
 
   const fetchTransactions = useCallback(async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
+      // Obter últimas 5 para a lista de atividades
+      const { data: recent, error } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
         .order('date', { ascending: false })
         .limit(5);
+
       if (error) throw error;
-      setTransactions((data || []).map(t => ({
+      setTransactions((recent || []).map(t => ({
         id: t.id,
         description: t.description,
         amount: Number(t.amount),
@@ -67,12 +77,34 @@ const Dashboard: React.FC<DashboardProps> = ({
         type: t.type,
         paymentMethod: t.payment_method,
       })));
+
+      // Obter todas do mês selecionado para os totais
+      const yyyy = selectedYear;
+      const mm = String(selectedMonth + 1).padStart(2, '0');
+      const firstDay = `${yyyy}-${mm}-01`;
+      const daysInMonth = new Date(yyyy, selectedMonth + 1, 0).getDate();
+      const lastDay = `${yyyy}-${mm}-${daysInMonth}`;
+
+      const { data: monthData, error: monthError } = await supabase
+        .from('transactions')
+        .select('type, amount')
+        .eq('user_id', user.id)
+        .gte('date', firstDay)
+        .lte('date', lastDay);
+
+      if (monthError) throw monthError;
+      
+      const mData = monthData || [];
+      const mIncome = mData.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + Number(curr.amount), 0);
+      const mExpense = mData.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + Number(curr.amount), 0);
+      
+      setMonthlyTotals({ income: mIncome, expense: mExpense });
     } catch (err) {
       console.error('Erro ao carregar transações', err);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, selectedMonth, selectedYear]);
 
   useEffect(() => {
     fetchTransactions();
@@ -126,8 +158,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     await fetchTransactions();
   };
 
-  const totalIncome = transactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalIncome = monthlyTotals.income;
+  const totalExpense = monthlyTotals.expense;
   const balance = totalIncome - totalExpense;
 
   const quickShortcuts = [
@@ -209,6 +241,37 @@ const Dashboard: React.FC<DashboardProps> = ({
           >
             <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all shadow-md ${isTravelModeActive ? 'right-0.5 bg-[#6E8F7A]' : 'left-0.5 bg-white'}`} />
           </button>
+        </div>
+      </div>
+
+      {/* Summary Header & Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 md:mt-8 mb-2">
+        <h3 className="text-base md:text-2xl font-black text-[#3A4F3C] uppercase tracking-tighter">Resumo do Mês</h3>
+        <div className="relative w-fit">
+          <select
+            value={`${selectedMonth}-${selectedYear}`}
+            onChange={(e) => {
+              const [m, y] = e.target.value.split('-').map(Number);
+              setSelectedMonth(m);
+              setSelectedYear(y);
+            }}
+            className="bg-white/60 border border-black/5 rounded-xl pl-4 pr-10 py-2.5 outline-none font-black text-[#3A4F3C] text-[10px] uppercase appearance-none cursor-pointer shadow-sm focus:ring-2 focus:ring-[#3A4F3C]/10 transition-all"
+          >
+            {Array.from({ length: 12 }).map((_, i) => {
+              const d = new Date();
+              d.setMonth(d.getMonth() - i);
+              const m = d.getMonth();
+              const y = d.getFullYear();
+              return (
+                <option key={`${m}-${y}`} value={`${m}-${y}`}>
+                  {MONTHS[m]} / {y}
+                </option>
+              );
+            })}
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#3A4F3C]/40 pointer-events-none">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
         </div>
       </div>
 

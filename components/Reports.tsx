@@ -73,8 +73,17 @@ const Reports: React.FC = () => {
   const yearData = useMemo(() => {
     const months = MONTHS.map((name, index) => {
       const monthTrans = transactions.filter(t => {
-        const d = new Date(t.date);
-        return d.getFullYear() === selectedYear && d.getMonth() === index;
+        let tMonth, tYear;
+        if (t.date && t.date.includes('-')) {
+          const parts = t.date.split('T')[0].split('-');
+          tYear = Number(parts[0]);
+          tMonth = Number(parts[1]) - 1;
+        } else {
+          const d = new Date(t.date);
+          tYear = d.getFullYear();
+          tMonth = d.getMonth();
+        }
+        return tYear === selectedYear && tMonth === index;
       });
 
       const receitas = monthTrans.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);
@@ -88,8 +97,17 @@ const Reports: React.FC = () => {
   // Monthly Data Calculation
   const monthlyTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+      let tMonth, tYear;
+      if (t.date && t.date.includes('-')) {
+        const parts = t.date.split('T')[0].split('-');
+        tYear = Number(parts[0]);
+        tMonth = Number(parts[1]) - 1;
+      } else {
+        const d = new Date(t.date);
+        tYear = d.getFullYear();
+        tMonth = d.getMonth();
+      }
+      return tYear === selectedYear && tMonth === selectedMonth;
     });
   }, [transactions, selectedMonth, selectedYear]);
 

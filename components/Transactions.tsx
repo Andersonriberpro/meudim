@@ -346,8 +346,17 @@ const Transactions: React.FC<TransactionsProps> = ({ isTravelModeActive, travelN
   };
 
   const filteredTransactions = transactions.filter(t => {
-    const tDate = new Date(t.date);
-    const dateMatch = tDate.getMonth() === selectedMonth && tDate.getFullYear() === selectedYear;
+    let tMonth, tYear;
+    if (t.date && t.date.includes('-')) {
+      const parts = t.date.split('T')[0].split('-');
+      tYear = Number(parts[0]);
+      tMonth = Number(parts[1]) - 1;
+    } else {
+      const tDate = new Date(t.date);
+      tMonth = tDate.getMonth();
+      tYear = tDate.getFullYear();
+    }
+    const dateMatch = tMonth === selectedMonth && tYear === selectedYear;
     const categoryMatch = filterCategory === 'Todos' || t.category === filterCategory;
     return dateMatch && categoryMatch;
   });
